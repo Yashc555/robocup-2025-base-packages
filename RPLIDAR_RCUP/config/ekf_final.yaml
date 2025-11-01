@@ -1,0 +1,39 @@
+ekf_filter_node:
+  ros__parameters:
+    frequency: 50.0  # Hz
+    
+    two_d_mode: true  
+
+    # Input from the IMU
+    imu0: /imu/data
+    imu0_config: [false, false, false,  # X, Y, Z position
+                  false, false, false,  # Roll, Pitch (ignored), Yaw (used)
+                  false, false, false,  # X, Y, Z velocity
+                  false, false, true,   # Angular velocity (only yaw)
+                  false, false, false]  # Linear acceleration (ignored)
+    
+    imu0_differential: false
+    imu0_relative: true
+    imu0_remove_gravitational_acceleration: true
+
+    # Input from Wheel Odometry
+    odom0: /wheel_odom
+    odom0_config: [true, true, false,  # X, Y position
+                   false, false, true, # Roll, Pitch (ignored), Yaw (used)
+                   true, true, false,  # X, Y velocity (used)
+                   false, false, true, # Angular velocity (used)
+                   false, false, false] # Acceleration (ignored)
+
+    odom0_differential: false
+    odom0_relative: false
+
+    # Magnetometer for yaw correction
+    imu0_use_mag: true
+
+    # Process noise covariance (Tuning required)
+    process_noise_covariance: [0.01, 0.0, 0.0, 0.0, 0.0, 0.0,
+                                0.0, 0.01, 0.0, 0.0, 0.0, 0.0,
+                                0.0, 0.0, 0.01, 0.0, 0.0, 0.0,
+                                0.0, 0.0, 0.0, 0.1, 0.0, 0.0,
+                                0.0, 0.0, 0.0, 0.0, 0.1, 0.0,
+                                0.0, 0.0, 0.0, 0.0, 0.0, 0.1]

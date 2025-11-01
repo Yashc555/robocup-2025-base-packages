@@ -1,0 +1,43 @@
+cmake_minimum_required(VERSION 3.5)
+project(serial_motor_demo_msgs)
+
+# Default to C99
+if(NOT CMAKE_C_STANDARD)
+  set(CMAKE_C_STANDARD 99)
+endif()
+
+# Default to C++14
+if(NOT CMAKE_CXX_STANDARD)
+  set(CMAKE_CXX_STANDARD 14)
+endif()
+
+if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+  add_compile_options(-Wall -Wextra -Wpedantic)
+endif()
+
+# find dependencies
+find_package(ament_cmake REQUIRED)
+find_package(rosidl_default_generators REQUIRED)
+
+# Uncomment and add additional dependencies here if needed
+# find_package(<dependency> REQUIRED)
+
+# Generate messages
+rosidl_generate_interfaces(${PROJECT_NAME}
+  "msg/MotorCommand.msg"
+  "msg/MotorVels.msg"
+  "msg/EncoderVals.msg"
+)
+
+# Enable testing
+if(BUILD_TESTING)
+  find_package(ament_lint_auto REQUIRED)
+  ament_lint_auto_find_test_dependencies()
+endif()
+
+# Export runtime dependencies
+find_package(rosidl_default_runtime REQUIRED)
+ament_export_dependencies(rosidl_default_runtime)
+
+# Package installation
+ament_package()

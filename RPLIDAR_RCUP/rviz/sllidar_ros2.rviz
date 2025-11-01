@@ -1,0 +1,73 @@
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Alpha: 0.5
+      Cell Size: 1
+      Class: rviz_default_plugins/Grid
+      Color: 160; 160; 164
+      Enabled: true
+      Line Style:
+        Line Width: 0.03
+        Value: Lines
+      Name: Grid
+      Plane: XY
+      Plane Cell Count: 50  # Increased cell count for larger grid
+      Reference Frame: map  # Set the reference frame to "map" for consistency
+    - Alpha: 1
+      Class: rviz_default_plugins/LaserScan
+      Enabled: true
+      Topic: /scan
+      Name: LaserScan
+      Color Transformer: Intensity
+      Style: Flat Squares
+      Size (Pixels): 3
+      Use Fixed Frame: true
+      Max Intensity: 47
+      Min Intensity: 47
+      Invert Rainbow: false
+      Use rainbow: true
+    - Alpha: 0.7
+      Class: rviz_default_plugins/Map
+      Enabled: true
+      Name: Global Costmap
+      Topic: /global_costmap/costmap
+      History Policy: Keep All
+      Color Scheme: costmap
+      Draw Behind: false
+      Resolution: 0.05  # Adjusted for finer details
+      Value: true
+    - Alpha: 0.7
+      Class: rviz_default_plugins/Map
+      Enabled: true
+      Name: Local Costmap
+      Topic: /local_costmap/costmap
+      History Policy: Keep All
+      Color Scheme: costmap
+      Draw Behind: false
+      Resolution: 0.05  # Adjusted for finer details
+      Value: true
+    - Alpha: 0.9
+      Class: rviz_default_plugins/Path
+      Enabled: true
+      Name: Planned Path
+      Topic: /plan
+      History Policy: Keep All
+      Color: 255; 0; 0
+      Line Style: Lines
+      Line Width: 0.05
+      Pose Style: Axes
+      Pose Scale: 0.05
+    - Alpha: 1
+      Class: rviz_default_plugins/PoseArray
+      Enabled: true
+      Name: Navigation Goals
+      Topic: /goals
+      History Policy: Keep All
+      Color: 0; 255; 0
+      Arrow Length: 0.2
+      Arrow Thickness: 0.01
+  Global Options:
+    Background Color: 48; 48; 48
+    Fixed Frame: map  # Use "map" as the fixed frame for consistent mapping
+    Frame Rate: 30
+  Name: root

@@ -1,0 +1,30 @@
+ekf_filter_node:
+  ros__parameters:
+    frequency: 50.0
+
+    # Frames
+    map_frame: map
+    odom_frame: odom
+    base_link_frame: base_link
+    world_frame: odom
+    print_diagnostics: true
+
+    # IMU
+    imu0: /zed/zed_node/imu/data
+    imu0_differential: true
+    imu0_remove_gravitational_acceleration: true
+
+    # Use orientation (roll,pitch,yaw), yaw rate, and linear accel X/Y
+    # Order: [x,y,z, roll,pitch,yaw, vx,vy,vz, vroll,vpitch,vyaw, ax,ay,az]
+    imu0_config: [false, false, false,
+                  true,  true,  true,
+                  false, false, false,
+                  true, true, true,
+                  false,  false,  false]
+
+    imu0_queue_size: 5
+    imu0_nodelay: false
+
+    # If you run on a ground robot and want to freeze z/roll/pitch:
+    # two_d_mode: true
+    two_d_mode: false
