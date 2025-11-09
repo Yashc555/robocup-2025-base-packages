@@ -2,16 +2,6 @@
 #
 """
 tracking_dead_wheel_node.py  -- dead-wheel odometry using the simple 3-wheel formula.
-
-Algorithm (per update):
- - map incoming encoders (e1,e2,e3) -> pods order (using encoder_map and encoder_signs)
- - detect which pod is lateral (phi ~= +/- pi/2) -> X wheel
- - remaining two pods are left/right (decide by x<0 left, x>0 right)
- - compute delta ticks -> distances (circumference/tpr)
- - rightDist, leftDist, dxR (X wheel lateral dist)
- - dyR = 0.5*(rightDist + leftDist)
- - headingChange = (rightDist - leftDist) / encoder_width (baseline = right_x - left_x)
- - integrate using avg heading
 """
 import numpy as np
 if not hasattr(np, "float"):
@@ -36,7 +26,8 @@ from collections import deque
 from nav_msgs.msg import Path
 from geometry_msgs.msg import PoseStamped
 from sensor_msgs.msg import Imu
-#18.4 and 12.3cm
+from builtin_interfaces.msg import Time as BTime
+
 def yaw_to_quaternion(yaw: float) -> Quaternion:
     q = tf_transformations.quaternion_from_euler(0.0, 0.0, yaw)
     return Quaternion(x=q[0], y=q[1], z=q[2], w=q[3])
@@ -52,29 +43,23 @@ class DeadWheelOdomNode(Node):
         self.declare_parameter('ticks_per_rev_left', 2400)
         self.declare_parameter('ticks_per_rev_right', 2400)
         # wheel_r is the radius of the dead wheel (meters)
-        self.declare_parameter('wheel_radius', 0.03)
+        self.declare_parameter('wheel_radius', 0.06)
         self.declare_parameter('frame_odom', 'odom')
         self.declare_parameter('frame_base', 'base_link')
         self.declare_parameter('publish_marker', True)
         self.declare_parameter('marker_scale', [0.2, 0.2, 0.08])
 
-        # pods: flat [x,y,phi, x,y,phi, ...] in the same order the encoder_map will map into
-        # pleasant default: front lateral, left forward, right forward
-        # pods: (x_right, y_forward, phi_roll)  -> phi_roll is rolling direction angle from +X (right)
         self.declare_parameter(
             'pods',
             [
-                0.0,  0.1230, math.pi/2.0,           # pod0: front lateral -- rolling direction = +X (right) -> phi = 0.0
-                -0.092, 0.0,  0.0,  # pod1: left forward  -- rolling direction = +Y (forward) -> phi = pi/2
-                0.092,  0.0,0.0   # pod2: right forward -- rolling direction = +Y (forward) -> phi = pi/2
+                0.0,  0.095, math.pi/2.0,
+                -0.1, 0.0,  0.0,
+                0.095,  0.0,0.0
             ]
         )
 
-
-        # map incoming e1,e2,e3 -> pod indices (0..2)
         self.declare_parameter('encoder_map', [0, 1, 2])
-        # per-encoder sign flips (1 or -1)
-        self.declare_parameter('encoder_signs', [1, -1, 1])
+        self.declare_parameter('encoder_signs', [-1, 1, 1])
 
         # --------------------------------
         # load params
@@ -100,7 +85,6 @@ class DeadWheelOdomNode(Node):
 
         self.get_logger().info(f"pods: {self.pods}")
         self.get_logger().info(f"encoder_map: {self.encoder_map}, encoder_signs: {self.encoder_signs}")
-        # self.get_logger().info(f"ticks_per_rev={self.tpr}, wheel_r={self.wheel_r:.4f} m (circ={2*math.pi*self.wheel_r:.4f})")
 
         # publishers
         self.odom_pub = self.create_publisher(Odometry, 'odom', 10)
@@ -134,31 +118,24 @@ class DeadWheelOdomNode(Node):
 
         # after existing publishers
         self.path_pub = self.create_publisher(Path, 'odom_path', 10)
-        self.path_history = deque(maxlen=1000)   # store last 1000 poses
+        self.path_history = deque(maxlen=1000)
 
-        
         # timer
         self.create_timer(0.005, self.read_loop)  # 200 Hz
-        
-        
 
     def _identify_roles_from_pods(self):
-        # find index with phi ~ +/- pi/2 (lateral X wheel)
         lateral = None
         for i, (_, _, phi) in enumerate(self.pods):
-            # normalize phi to [-pi, pi]
             p = ((phi + math.pi) % (2*math.pi)) - math.pi
-            if abs(abs(p) - math.pi/2) < 0.6:  # tolerant check (~> 34 degrees)
+            if abs(abs(p) - math.pi/2) < 0.6:
                 lateral = i
                 break
         if lateral is None:
-            # fallback: choose pod with largest absolute y (most offset in y)
             maxy = -1.0
             for i, (_, y, _) in enumerate(self.pods):
                 if abs(y) > maxy:
                     maxy = abs(y); lateral = i
 
-        # remaining two are forward wheels; decide left/right by x sign
         others = [i for i in range(len(self.pods)) if i != lateral]
         if len(others) != 2:
             self.get_logger().error("Pod count != 3, can't auto-identify roles reliably.")
@@ -179,20 +156,13 @@ class DeadWheelOdomNode(Node):
         self.right_idx = right
 
         self.get_logger().info(f"Identified roles -> lateral_idx={self.lateral_idx}, left_idx={self.left_idx}, right_idx={self.right_idx}")
-    # Insert these methods into your DeadWheelOdomNode class (replace the old read_loop)
+
     def _is_tick_jump(self, d_ticks, dt):
-        """
-        Heuristic check for impossible tick jumps (wrap/reset or noisy outlier).
-        Returns True if the sample should be treated as invalid and baseline reinitialized.
-        """
-        # Conservative upper bound of ticks/sec (tune for your hardware)
         max_rate_ticks_per_sec = 50000.0
         safety = 4.0
         max_allowed = max_rate_ticks_per_sec * max(dt, 1e-3) * safety
-        # If any wheel exceeds allowed rate -> suspicious
         if np.any(np.abs(d_ticks) > max_allowed):
             return True
-        # Absolute sanity cap to catch counter resets
         if np.any(np.abs(d_ticks) > 1e7):
             return True
         return False
@@ -220,26 +190,27 @@ class DeadWheelOdomNode(Node):
         d_right = d_ticks[self.right_idx]   * (circ / self.tpr_right)
 
         # --- GM0 math ---
-        baseline = self.pods[self.right_idx][0] - self.pods[self.left_idx][0]   # ~0.226 m
-        F = self.pods[self.lateral_idx][1]                                     # ~0.13 m
+        baseline = self.pods[self.right_idx][0] - self.pods[self.left_idx][0]
+        F = self.pods[self.lateral_idx][1]
 
+        # --- compute wheel distances -> body motion ---
         dy_fwd = 0.5 * (d_left + d_right)
         dtheta = (d_right - d_left) / baseline
-        dx_lat = d_front - F * dtheta   # subtract rotation artifact
+        dx_lat = d_front + F * dtheta
 
-        # body frame (ROS convention: x=forward, y=left)
+        # body frame displacements (robot frame: x forward, y left)
         body_dx = dy_fwd
         body_dy = dx_lat
 
-        # rotate to world using avg heading
+        # rotate to world using average heading during the step
         avg_heading = self.yaw + dtheta / 2.0
         cos_h, sin_h = math.cos(avg_heading), math.sin(avg_heading)
-        dx_world = body_dx * cos_h - body_dy * sin_h
-        dy_world = body_dx * sin_h + body_dy * cos_h
+        step_dx_world = body_dx * cos_h - body_dy * sin_h
+        step_dy_world = body_dx * sin_h + body_dy * cos_h
 
-        # integrate
-        self.x += dx_world
-        self.y += dy_world
+        # integrate pose (use step deltas)
+        self.x += step_dx_world
+        self.y += step_dy_world
         self.yaw = (self.yaw + dtheta + math.pi) % (2.0 * math.pi) - math.pi
 
         # velocities
@@ -247,8 +218,18 @@ class DeadWheelOdomNode(Node):
         odom_left_vel = body_dy / dt
         odom_angular_vel = dtheta / dt
 
-        # publish odometry
-        time_msg = self.get_clock().now().to_msg()
+        # Debug: show both per-step motion and cumulative pose
+        self.get_logger().info(
+            f"ticks={d_ticks.tolist()} Δf={d_front:.5f} ΔL={d_left:.5f} ΔR={d_right:.5f} "
+            f"dθ={math.degrees(dtheta):.2f}° dt={dt:.4f}s | "
+            f"step_world_dx={step_dx_world:.4f}m step_world_dy={step_dy_world:.4f}m "
+            f"pose_x={self.x:.4f}m pose_y={self.y:.4f}m yaw={math.degrees(self.yaw):.2f}°"
+        )
+
+        # publish odometry using MCU timestamp
+        sec = int(sample_time_sec)
+        nsec = int((sample_time_sec - sec) * 1e9)
+        time_msg = BTime(sec=sec, nanosec=nsec)
         hdr = Header()
         hdr.stamp = time_msg
         hdr.frame_id = self.frame_odom
@@ -266,8 +247,8 @@ class DeadWheelOdomNode(Node):
         self.odom_pub.publish(odom)
 
         t = TransformStamped()
-        t.header = hdr                 # same header you used for odom
-        t.header.stamp = hdr.stamp     # ensure stamp is set (hdr already has it)
+        t.header = hdr
+        t.header.stamp = hdr.stamp
         t.header.frame_id = self.frame_odom
         t.child_frame_id = self.frame_base
         t.transform.translation.x = self.x
@@ -287,30 +268,18 @@ class DeadWheelOdomNode(Node):
         path_msg.poses = list(self.path_history)
         self.path_pub.publish(path_msg)
 
-
-
         # update baseline
-        
         self.prev_ticks = ticks
         self.prev_time = sample_time_sec
         return True
 
-
     def read_loop(self):
-        """
-        Robust serial processing:
-         - drain available lines from serial (up to max_lines)
-         - process each JSON sample in order with _handle_sample()
-         - reinitialize baseline on detected wraps/jumps
-        """
-        # check how many bytes waiting (guard)
         try:
             waiting = self.ser.in_waiting
         except Exception as e:
             self.get_logger().warn(f"Serial in_waiting error: {e}")
             waiting = 0
 
-        # If nothing waiting, do one non-blocking readline attempt (timeout provided by serial)
         if waiting == 0:
             try:
                 line_raw = self.ser.readline()
@@ -325,9 +294,8 @@ class DeadWheelOdomNode(Node):
                 return
             lines = [line]
         else:
-            # drain available lines to avoid backlog (limit to avoid lock)
             lines = []
-            max_lines = 500
+            max_lines = 100
             while self.ser.in_waiting > 0 and len(lines) < max_lines:
                 try:
                     raw_line = self.ser.readline()
@@ -351,67 +319,52 @@ class DeadWheelOdomNode(Node):
             except Exception:
                 self.get_logger().warn(f"Bad JSON (ignored): {line}")
                 continue
-# ---------------- IMU publishing ----------------
+
+            # sample timestamp: prefer MCU provided ms timestamp "time_ms"
+            sample_time_sec = None
+            try:
+                if 'time_ms' in data:
+                    sample_time_sec = float(data.get('time_ms')) * 1e-3
+            except Exception:
+                sample_time_sec = None
+
+            if sample_time_sec is None:
+                now_time = self.get_clock().now().to_msg()
+                sample_time_sec = now_time.sec + now_time.nanosec * 1e-9
+
+            # ---------------- IMU publishing ----------------
             try:
                 imu_msg = Imu()
-                imu_msg.header.stamp = self.get_clock().now().to_msg()
-                imu_msg.header.frame_id = self.frame_base   # usually "base_link"
+                # put MCU timestamp into IMU header so all sensors share same time base
+                sec = int(sample_time_sec)
+                nsec = int((sample_time_sec - sec) * 1e9)
+                imu_msg.header.stamp.sec = sec
+                imu_msg.header.stamp.nanosec = nsec
+                imu_msg.header.frame_id = self.frame_base
 
-                # Orientation quaternion
                 imu_msg.orientation.x = float(data.get("orientation_x", 0.0))
                 imu_msg.orientation.y = float(data.get("orientation_y", 0.0))
                 imu_msg.orientation.z = float(data.get("orientation_z", 0.0))
                 imu_msg.orientation.w = float(data.get("orientation_w", 1.0))
 
-                # Angular velocity
                 imu_msg.angular_velocity.x = float(data.get("angular_velocity_x", 0.0))
                 imu_msg.angular_velocity.y = float(data.get("angular_velocity_y", 0.0))
                 imu_msg.angular_velocity.z = float(data.get("angular_velocity_z", 0.0))
 
-                # Linear acceleration
                 imu_msg.linear_acceleration.x = float(data.get("linear_acceleration_x", 0.0))
                 imu_msg.linear_acceleration.y = float(data.get("linear_acceleration_y", 0.0))
                 imu_msg.linear_acceleration.z = float(data.get("linear_acceleration_z", 0.0))
-
-                # Optional: yaw/pitch/roll in radians (from degrees)
-                yaw_rad   = math.radians(float(data.get("yaw_deg", 0.0)))
-                pitch_rad = math.radians(float(data.get("pitch_deg", 0.0)))
-                roll_rad  = math.radians(float(data.get("roll_deg", 0.0)))
-                self.get_logger().debug(
-                    f"IMU YPR [rad]: yaw={yaw_rad:.3f}, pitch={pitch_rad:.3f}, roll={roll_rad:.3f}"
-                )
-
-                # Fill covariances (tune later if you know noise characteristics)
-                imu_msg.orientation_covariance = [0.001, 0.0,   0.0,
-                                                0.0,   0.001, 0.0,
-                                                0.0,   0.0,   0.001]
-
-                imu_msg.angular_velocity_covariance = [0.01, 0.0,  0.0,
-                                                    0.0,  0.01, 0.0,
-                                                    0.0,  0.0,  0.01]
-
-                imu_msg.linear_acceleration_covariance = [0.1, 0.0,  0.0,
-                                                        0.0, 0.1,  0.0,
-                                                        0.0, 0.0,  0.1]
 
                 self.imu_pub.publish(imu_msg)
             except Exception as e:
                 self.get_logger().warn(f"IMU publish error: {e}")
 
-            # expected numeric encoder fields e1,e2,e3
+            # expected numeric encoder fields a,b,c
             try:
                 raw = [int(data.get('a', 0)), int(data.get('b', 0)), int(data.get('c', 0))]
             except Exception:
                 self.get_logger().warn(f"Encoder values not ints (ignored): {data}")
                 continue
-            
-            
-            # front_ticks = raw[0]
-            # left_ticks  = raw[1]
-            # right_ticks = raw[2]
-            # self.get_logger().info(
-            #     f"Ticks -> front={front_ticks}, left={left_ticks}, right={right_ticks}"
-            # )
 
             # map + sign
             mapped = [0] * len(self.pods)
@@ -419,10 +372,6 @@ class DeadWheelOdomNode(Node):
                 pod_idx = self.encoder_map[i_in] if i_in < len(self.encoder_map) else i_in
                 sign = int(self.encoder_signs[i_in]) if i_in < len(self.encoder_signs) else 1
                 mapped[pod_idx] = int(sign * val)
-            
-            # sample time from ROS clock (you can instead use MCU timestamp if provided)
-            now_time = self.get_clock().now().to_msg()
-            sample_time_sec = now_time.sec + now_time.nanosec * 1e-9
 
             ok = self._handle_sample(mapped, sample_time_sec)
             if ok:

@@ -175,3 +175,14 @@ def main(args=None):
 
 if __name__ == '__main__':
     main()
+#hahahah good job (~souri never)
+#autonoumous chalao 
+#innovationunleashed
+#ye kaha bitha diya
+#ros is shit
+#dont fly in boeing anymore hehe
+#germany here we come (old rm reference)
+#rcup 2025 base code  
+#ye kya kr rha hai
+#optimize the code
+#base autnomous nahi chala by the end of november (100rounds for each day)

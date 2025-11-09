@@ -1,0 +1,35 @@
+ekf_filter_node:
+  ros__parameters:
+    frequency: 10.0                     # EKF update rate (Hz)
+    two_d_mode: true                    # Enforces planar motion (locks Z, roll, pitch)
+    publish_tf: true                    # Publishes odom->base_link TF
+    map_frame: map                      # Global frame (used by RTAB-Map)
+    odom_frame: fused_odom              # EKF odometry frame (output)
+    base_link_frame: zed_camera_center  # From your TF tree
+    world_frame: fused_odom             # World frame = output frame for EKF
+
+    ########################
+    #  RTAB-MAP ODOM INPUT
+    ########################
+    odom0: /rtabmap/odom
+    # State: [x, y, z, roll, pitch, yaw, vx, vy, vz, vroll, vpitch, vyaw]
+    odom0_config: [true,  true,  false,   # fuse x, y (no z)
+                   false, false, true,    # use yaw only
+                   true,  true,  false,   # vx, vy (no vz)
+                   false, false, true]    # yaw rate only
+    odom0_queue_size: 10
+    odom0_differential: false            # RTAB-Map gives absolute odometry
+    odom0_relative: false
+
+    ########################
+    #  ZED IMU INPUT
+    ########################
+    imu0: /zed/zed_node/imu/data
+    imu0_config: [false, false, false,   # position (none)
+                  true,  true,  true,    # orientation roll, pitch, yaw
+                  false, false, false,   # linear velocity (none)
+                  false, false, true]    # yaw rate only
+    imu0_queue_size: 50
+    imu0_differential: false
+    imu0_relative: true
+    imu0_remove_gravitational_acceleration: true
