@@ -43,7 +43,7 @@ class DeadWheelOdomNode(Node):
         self.declare_parameter('ticks_per_rev_left', 2400)
         self.declare_parameter('ticks_per_rev_right', 2400)
         # wheel_r is the radius of the dead wheel (meters)
-        self.declare_parameter('wheel_radius', 0.06)
+        self.declare_parameter('wheel_radius', 0.03)
         self.declare_parameter('frame_odom', 'odom')
         self.declare_parameter('frame_base', 'base_link')
         self.declare_parameter('publish_marker', True)

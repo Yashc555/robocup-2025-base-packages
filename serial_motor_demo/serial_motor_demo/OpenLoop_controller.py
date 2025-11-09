@@ -17,7 +17,7 @@ class MecanumOpenLoopJoystickControl(Node):
 
         try:
             self.serial_port = serial.Serial('/dev/ttyACM0', 115200, timeout=1)
-            self.get_logger().info("Serial connection established on /dev/ttyACM0")
+            self.get_logger().info("Serial connection established on /dev/ttyACM1")
         except serial.SerialException:
             self.get_logger().error("Failed to open serial port /dev/ttyACM0")
             self.serial_port = None
@@ -46,7 +46,7 @@ class MecanumOpenLoopJoystickControl(Node):
         # Convert speeds to PWM in range -255 to 255
         pwm_values = [int(self.clamp(speed * 100, -self.max_pwm, self.max_pwm)) for speed in wheel_speeds]
         # Map PWM to motor order expected by microcontroller
-        pwm_message = json.dumps({"pwm1": pwm_values[0], "pwm2": pwm_values[1], "pwm3": pwm_values[2], "pwm4": pwm_values[3]})
+        pwm_message = json.dumps({"pwm1": -pwm_values[0], "pwm2": pwm_values[1], "pwm3": pwm_values[2], "pwm4": pwm_values[3]})
         self.get_logger().info(f"Sent PWM (Open-loop): {pwm_message}")
 
         if self.serial_port and self.serial_port.is_open:
