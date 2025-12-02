@@ -18,6 +18,7 @@ from visualization_msgs.msg import Marker
 import tf_transformations
 import tf2_ros
 import serial
+from serial.tools import list_ports
 import json
 import time
 import math
@@ -63,8 +64,10 @@ class DeadWheelOdomNode(Node):
 
         # --------------------------------
         # load params
-        self.serial_port = self.get_parameter('serial_port').get_parameter_value().string_value
+        param_port = self.get_parameter('serial_port').get_parameter_value().string_value
         self.baudrate = self.get_parameter('baudrate').get_parameter_value().integer_value
+        # default to configured param, may be overridden by auto-detect below
+        self.serial_port = param_port
         self.tpr_front = float(self.get_parameter('ticks_per_rev_front').get_parameter_value().integer_value)
         self.tpr_left  = float(self.get_parameter('ticks_per_rev_left').get_parameter_value().integer_value)
         self.tpr_right = float(self.get_parameter('ticks_per_rev_right').get_parameter_value().integer_value)
@@ -115,6 +118,17 @@ class DeadWheelOdomNode(Node):
         self.left_idx = None
         self.right_idx = None
         self._identify_roles_from_pods()
+
+        # try to auto-detect the encoder serial port by listening for one JSON message
+        try:
+            detected = self._auto_select_serial_port()
+            if detected:
+                self.get_logger().info(f"Auto-selected serial port: {detected}")
+                self.serial_port = detected
+            else:
+                self.get_logger().info(f"No auto-detected serial device matched; using configured port: {self.serial_port}")
+        except Exception as e:
+            self.get_logger().warn(f"Auto-detect serial port failed: {e}; falling back to {self.serial_port}")
 
         # after existing publishers
         self.path_pub = self.create_publisher(Path, 'odom_path', 10)
@@ -379,6 +393,62 @@ class DeadWheelOdomNode(Node):
 
         if not processed_any:
             return
+
+    def _auto_select_serial_port(self, scan_baud=None, read_timeout=0.5, max_lines=20):
+        """
+        Scan available serial ports, open each briefly, read up to max_lines JSON lines,
+        and select the port that publishes a JSON object with "name" == "STM_ENCODER.PWM".
+        Returns the device string (e.g. '/dev/ttyACM0') or None if none matched.
+        """
+        try:
+            ports = list_ports.comports()
+        except Exception as e:
+            self.get_logger().warn(f"list_ports.comports() failed: {e}")
+            return None
+
+        for p in ports:
+            port_name = p.device
+            try:
+                ser = serial.Serial(port_name, scan_baud if scan_baud else self.baudrate, timeout=read_timeout)
+                # small settle
+                time.sleep(0.02)
+            except Exception as e:
+                # cannot open this port; skip
+                self.get_logger().debug(f"Cannot open {port_name}: {e}")
+                continue
+
+            found = False
+            try:
+                lines_read = 0
+                while lines_read < max_lines:
+                    raw = ser.readline()
+                    if not raw:
+                        break
+                    lines_read += 1
+                    try:
+                        s = raw.decode('utf-8', errors='ignore').strip()
+                    except Exception:
+                        continue
+                    if not s:
+                        continue
+                    try:
+                        data = json.loads(s)
+                    except Exception:
+                        continue
+                    name = data.get('Name')
+                    if isinstance(name, str) and name.strip() == 'STM_ENCODER.PWM':
+                        found = True
+                        break
+            finally:
+                try:
+                    ser.close()
+                except Exception:
+                    pass
+
+            if found:
+                return port_name
+
+        return None
 
 def main(args=None):
     rclpy.init(args=args)

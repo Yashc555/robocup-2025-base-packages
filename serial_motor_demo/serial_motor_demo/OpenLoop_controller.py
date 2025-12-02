@@ -6,6 +6,7 @@ from sensor_msgs.msg import Joy
 import json
 import time
 import serial
+from serial.tools import list_ports
 
 class MecanumOpenLoopJoystickControl(Node):
     def __init__(self):
@@ -15,14 +16,74 @@ class MecanumOpenLoopJoystickControl(Node):
         self.L, self.W, self.R = 0.305, 0.2175, 0.075  # meters
         self.max_pwm = 35
 
-        try:
-            self.serial_port = serial.Serial('/dev/ttyACM0', 115200, timeout=1)
-            self.get_logger().info("Serial connection established on /dev/ttyACM1")
-        except serial.SerialException:
-            self.get_logger().error("Failed to open serial port /dev/ttyACM0")
+        self.serial_port = None
+        selected_port = self._auto_select_serial_port()
+        if selected_port:
+            try:
+                self.serial_port = serial.Serial(selected_port, 115200, timeout=1)
+                self.get_logger().info(f"Serial connection established on {selected_port}")
+            except serial.SerialException:
+                self.get_logger().error(f"Failed to open serial port {selected_port}")
+                self.serial_port = None
+        else:
+            self.get_logger().error("No serial port found with Name == STM_ENCODER.PWM")
             self.serial_port = None
 
         self.create_subscription(Joy, 'joy', self.joy_callback, 10)
+
+    def _auto_select_serial_port(self, scan_baud=115200, read_timeout=0.5, max_lines=20):
+        """
+        Scan available serial ports, open each briefly, read up to max_lines JSON lines,
+        and select the port that publishes a JSON object with "Name" == "STM_ENCODER.PWM".
+        Returns the device string (e.g. '/dev/ttyACM0') or None if none matched.
+        """
+        try:
+            ports = list_ports.comports()
+        except Exception as e:
+            self.get_logger().warn(f"list_ports.comports() failed: {e}")
+            return None
+
+        for p in ports:
+            port_name = p.device
+            try:
+                ser = serial.Serial(port_name, scan_baud, timeout=read_timeout)
+                time.sleep(0.02)
+            except Exception as e:
+                self.get_logger().debug(f"Cannot open {port_name}: {e}")
+                continue
+
+            found = False
+            try:
+                lines_read = 0
+                while lines_read < max_lines:
+                    raw = ser.readline()
+                    if not raw:
+                        break
+                    lines_read += 1
+                    try:
+                        s = raw.decode('utf-8', errors='ignore').strip()
+                    except Exception:
+                        continue
+                    if not s:
+                        continue
+                    try:
+                        data = json.loads(s)
+                    except Exception:
+                        continue
+                    name = data.get('Name')
+                    if isinstance(name, str) and name.strip() == 'STM_ENCODER.PWM':
+                        found = True
+                        break
+            finally:
+                try:
+                    ser.close()
+                except Exception:
+                    pass
+
+            if found:
+                return port_name
+
+        return None
 
     def joy_callback(self, msg: Joy):
         vx = msg.axes[1]  # Forward/Backward
