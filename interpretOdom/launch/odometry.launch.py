@@ -14,7 +14,7 @@ def generate_launch_description():
             package='rviz2',
             executable='rviz2',
             name='rviz2',
-            arguments=['-d', '/home/yash/rcup_2025_base_ws/src/interpretOdom/config/rvizwodom.rviz']
+            arguments=['-d', '/home/sanjay/ros2_workspaces/base_ws/src/interpretOdom/config/rvizwodom.rviz']
         ),
         # Launch robot_localization EKF node with custom config
         # Node(
@@ -22,6 +22,6 @@ def generate_launch_description():
         #     executable='ekf_node',
         #     name='ekf_filter_node',
         #     output='screen',
-        #     parameters=['/home/yash/rcup_2025_base_ws/src/interpretOdom/config/dead_wheel_w_imu.yaml.yaml']
+        #     parameters=['/home/sanjay/ros2_workspaces/base_ws/src/interpretOdom/config/dead_wheel_w_imu.yaml']
         # ),
     ])

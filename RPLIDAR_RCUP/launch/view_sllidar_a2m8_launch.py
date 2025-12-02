@@ -12,7 +12,7 @@ def generate_launch_description():
     serial_port = LaunchConfiguration('serial_port', default='/dev/ttyUSB0')
     serial_baudrate = LaunchConfiguration('serial_baudrate', default='115200')
     frame_id = LaunchConfiguration('frame_id', default='laser')
-    inverted = LaunchConfiguration('inverted', default='false')
+    inverted = LaunchConfiguration('inverted', default='true')
     angle_compensate = LaunchConfiguration('angle_compensate', default='true')
     # Available scan modes: 'Standard', 'Express', 'Boost', 'Sensitivity'
     scan_mode = LaunchConfiguration('scan_mode', default='Boost')
@@ -109,22 +109,16 @@ def generate_launch_description():
             executable='static_transform_publisher',
             name='base_footprint_to_base_link',
             arguments=['0', '0', '0', '0', '0', '0', 'base_footprint', 'base_link']
+
         ),
         Node(
             package='tf2_ros',
             executable='static_transform_publisher',
             name='base_link_to_laser',
-            arguments=['0', '0', '0', '0', '0', '0', 'base_link', 'laser']
+            arguments=['0.385', '0', '-0.08', '0', '0', '0', 'base_link', 'laser']
         ),
         
-        Node(
-            package='robot_localization',
-            executable='ekf_node',
-            name='ekf_filter_node',
-            output='screen',
-            parameters=[ekf_config_file],
-            remappings=[('/odometry/filtered', '/odom')]
-        ),
+
 
         # SLAM Toolbox
         IncludeLaunchDescription(
@@ -134,11 +128,6 @@ def generate_launch_description():
                 'params_file': slam_params_file
             }.items()
         ),
-        # # Nav2 bringup
-        # IncludeLaunchDescription(
-        #     PythonLaunchDescriptionSource(nav2_launch_dir),
-        #     launch_arguments={'use_sim_time': 'false'}.items()
-        # ),
 
         # RViz node
         Node(

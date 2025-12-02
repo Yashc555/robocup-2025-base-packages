@@ -8,7 +8,7 @@ class MecanumJoystickControl(Node):
         super().__init__('mecanum_joystick_control')
 
         # Open Serial Port
-        self.ser = serial.Serial('/dev/ttyACM1', 115200)
+        self.ser = serial.Serial('/dev/ttyACM0', 115200)
 
         # Subscribe to joystick messages
         self.joy_subscriber = self.create_subscription(

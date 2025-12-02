@@ -59,7 +59,7 @@ class DeadWheelOdomNode(Node):
         )
 
         self.declare_parameter('encoder_map', [0, 1, 2])
-        self.declare_parameter('encoder_signs', [-1, 1, 1])
+        self.declare_parameter('encoder_signs', [1, 1, 1])
 
         # --------------------------------
         # load params
@@ -196,7 +196,7 @@ class DeadWheelOdomNode(Node):
         # --- compute wheel distances -> body motion ---
         dy_fwd = 0.5 * (d_left + d_right)
         dtheta = (d_right - d_left) / baseline
-        dx_lat = d_front + F * dtheta
+        dx_lat = d_front - F * dtheta
 
         # body frame displacements (robot frame: x forward, y left)
         body_dx = dy_fwd
@@ -227,12 +227,12 @@ class DeadWheelOdomNode(Node):
         )
 
         # publish odometry using MCU timestamp
-        sec = int(sample_time_sec)
-        nsec = int((sample_time_sec - sec) * 1e9)
-        time_msg = BTime(sec=sec, nanosec=nsec)
+        # publish odometry stamped with ROS system time (keeps timestamps consistent with LiDAR)
+        now = self.get_clock().now().to_msg()
         hdr = Header()
-        hdr.stamp = time_msg
+        hdr.stamp = now
         hdr.frame_id = self.frame_odom
+
 
         odom = Odometry()
         odom.header = hdr

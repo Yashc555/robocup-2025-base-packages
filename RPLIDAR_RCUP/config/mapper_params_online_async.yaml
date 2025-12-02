@@ -12,8 +12,8 @@ slam_toolbox:
     # ROS Parameters
     odom_frame: odom
     map_frame: map
-    base_frame: base_footprint
-    scan_topic: /scan
+    base_frame: base_link
+    scan_topic: /scan_raw_filtered
     use_map_saver: true
     mode: mapping #localization
 
@@ -40,9 +40,9 @@ slam_toolbox:
     # General Parameters
     use_scan_matching: true
     use_scan_barycenter: true
-    minimum_travel_distance: 0.2
-    minimum_travel_heading: 0.2
-    scan_buffer_size: 10
+    minimum_travel_distance: 0.1 #0.2 default
+    minimum_travel_heading: 0.1 #0.2 default
+    scan_buffer_size: 1000
     scan_buffer_maximum_scan_distance: 10.0
     link_match_minimum_response_fine: 0.6  
     link_match_minimum_response_coarse: 0.5
