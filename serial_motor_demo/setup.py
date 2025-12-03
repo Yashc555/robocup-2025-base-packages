@@ -50,6 +50,7 @@ setup(
             'dynamic_tf_broadcaster = serial_motor_demo.dynamic_tf_broadcaster:main',
             'scan_timestamp_fixer = serial_motor_demo.scan_timestamp_fixer:main',
             'raw_odom_publisher = serial_motor_demo.raw_odom_publisher:main',
+            'cmd_vel_to_pwm = serial_motor_demo.cmd_vel_to_pwm:main',
         ],
     },
 )

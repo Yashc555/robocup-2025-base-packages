@@ -2,6 +2,7 @@
 #
 """
 tracking_dead_wheel_node.py  -- dead-wheel odometry using the simple 3-wheel formula.
+Reads MCU JSON lines from ROS topic `mcu/in` (std_msgs/String).
 """
 import numpy as np
 if not hasattr(np, "float"):
@@ -17,8 +18,6 @@ from std_msgs.msg import Header
 from visualization_msgs.msg import Marker
 import tf_transformations
 import tf2_ros
-import serial
-from serial.tools import list_ports
 import json
 import time
 import math
@@ -27,7 +26,7 @@ from collections import deque
 from nav_msgs.msg import Path
 from geometry_msgs.msg import PoseStamped
 from sensor_msgs.msg import Imu
-from builtin_interfaces.msg import Time as BTime
+from std_msgs.msg import String
 
 def yaw_to_quaternion(yaw: float) -> Quaternion:
     q = tf_transformations.quaternion_from_euler(0.0, 0.0, yaw)
@@ -38,7 +37,6 @@ class DeadWheelOdomNode(Node):
         super().__init__('dead_wheel_odom')
 
         # params
-        self.declare_parameter('serial_port', '/dev/ttyACM0')
         self.declare_parameter('baudrate', 115200)
         self.declare_parameter('ticks_per_rev_front', 2400)
         self.declare_parameter('ticks_per_rev_left', 2400)
@@ -64,10 +62,7 @@ class DeadWheelOdomNode(Node):
 
         # --------------------------------
         # load params
-        param_port = self.get_parameter('serial_port').get_parameter_value().string_value
         self.baudrate = self.get_parameter('baudrate').get_parameter_value().integer_value
-        # default to configured param, may be overridden by auto-detect below
-        self.serial_port = param_port
         self.tpr_front = float(self.get_parameter('ticks_per_rev_front').get_parameter_value().integer_value)
         self.tpr_left  = float(self.get_parameter('ticks_per_rev_left').get_parameter_value().integer_value)
         self.tpr_right = float(self.get_parameter('ticks_per_rev_right').get_parameter_value().integer_value)
@@ -94,16 +89,6 @@ class DeadWheelOdomNode(Node):
         if self.publish_marker:
             self.marker_pub = self.create_publisher(Marker, 'robot_marker', 10)
         self.tf_broadcaster = tf2_ros.TransformBroadcaster(self)
-
-        # serial
-        try:
-            self.ser = serial.Serial(self.serial_port, self.baudrate, timeout=1)
-            time.sleep(0.05)
-            self.get_logger().info(f"Opened serial {self.serial_port} @ {self.baudrate}")
-        except Exception as e:
-            self.get_logger().error(f"Failed to open serial {self.serial_port}: {e}")
-            raise
-
         self.imu_pub = self.create_publisher(Imu, 'imu/data_raw', 10)
 
         # state
@@ -119,23 +104,12 @@ class DeadWheelOdomNode(Node):
         self.right_idx = None
         self._identify_roles_from_pods()
 
-        # try to auto-detect the encoder serial port by listening for one JSON message
-        try:
-            detected = self._auto_select_serial_port()
-            if detected:
-                self.get_logger().info(f"Auto-selected serial port: {detected}")
-                self.serial_port = detected
-            else:
-                self.get_logger().info(f"No auto-detected serial device matched; using configured port: {self.serial_port}")
-        except Exception as e:
-            self.get_logger().warn(f"Auto-detect serial port failed: {e}; falling back to {self.serial_port}")
-
         # after existing publishers
         self.path_pub = self.create_publisher(Path, 'odom_path', 10)
         self.path_history = deque(maxlen=1000)
 
-        # timer
-        self.create_timer(0.005, self.read_loop)  # 200 Hz
+        # subscribe to arbiter input
+        self.create_subscription(String, 'mcu/in', self._mcu_line_cb, 40)
 
     def _identify_roles_from_pods(self):
         lateral = None
@@ -240,13 +214,11 @@ class DeadWheelOdomNode(Node):
             f"pose_x={self.x:.4f}m pose_y={self.y:.4f}m yaw={math.degrees(self.yaw):.2f}°"
         )
 
-        # publish odometry using MCU timestamp
-        # publish odometry stamped with ROS system time (keeps timestamps consistent with LiDAR)
+        # publish odometry using ROS system time
         now = self.get_clock().now().to_msg()
         hdr = Header()
         hdr.stamp = now
         hdr.frame_id = self.frame_odom
-
 
         odom = Odometry()
         odom.header = hdr
@@ -287,168 +259,69 @@ class DeadWheelOdomNode(Node):
         self.prev_time = sample_time_sec
         return True
 
-    def read_loop(self):
+    def _mcu_line_cb(self, msg: String):
+        line = msg.data.strip()
         try:
-            waiting = self.ser.in_waiting
-        except Exception as e:
-            self.get_logger().warn(f"Serial in_waiting error: {e}")
-            waiting = 0
-
-        if waiting == 0:
-            try:
-                line_raw = self.ser.readline()
-            except Exception as e:
-                self.get_logger().warn(f"Serial read error: {e}")
-                return
-            if not line_raw:
-                return
-            try:
-                line = line_raw.decode('utf-8', errors='ignore').strip()
-            except Exception:
-                return
-            lines = [line]
-        else:
-            lines = []
-            max_lines = 100
-            while self.ser.in_waiting > 0 and len(lines) < max_lines:
-                try:
-                    raw_line = self.ser.readline()
-                except Exception as e:
-                    self.get_logger().warn(f"Serial read error while draining: {e}")
-                    break
-                if not raw_line:
-                    break
-                try:
-                    s = raw_line.decode('utf-8', errors='ignore').strip()
-                except Exception:
-                    s = ''
-                if s:
-                    lines.append(s)
-            self.get_logger().debug(f"Drained {len(lines)} lines from serial (in_waiting was {waiting})")
-
-        processed_any = False
-        for line in lines:
-            try:
-                data = json.loads(line)
-            except Exception:
-                self.get_logger().warn(f"Bad JSON (ignored): {line}")
-                continue
-
-            # sample timestamp: prefer MCU provided ms timestamp "time_ms"
-            sample_time_sec = None
-            try:
-                if 'time_ms' in data:
-                    sample_time_sec = float(data.get('time_ms')) * 1e-3
-            except Exception:
-                sample_time_sec = None
-
-            if sample_time_sec is None:
-                now_time = self.get_clock().now().to_msg()
-                sample_time_sec = now_time.sec + now_time.nanosec * 1e-9
-
-            # ---------------- IMU publishing ----------------
-            try:
-                imu_msg = Imu()
-                # put MCU timestamp into IMU header so all sensors share same time base
-                sec = int(sample_time_sec)
-                nsec = int((sample_time_sec - sec) * 1e9)
-                imu_msg.header.stamp.sec = sec
-                imu_msg.header.stamp.nanosec = nsec
-                imu_msg.header.frame_id = self.frame_base
-
-                imu_msg.orientation.x = float(data.get("orientation_x", 0.0))
-                imu_msg.orientation.y = float(data.get("orientation_y", 0.0))
-                imu_msg.orientation.z = float(data.get("orientation_z", 0.0))
-                imu_msg.orientation.w = float(data.get("orientation_w", 1.0))
-
-                imu_msg.angular_velocity.x = float(data.get("angular_velocity_x", 0.0))
-                imu_msg.angular_velocity.y = float(data.get("angular_velocity_y", 0.0))
-                imu_msg.angular_velocity.z = float(data.get("angular_velocity_z", 0.0))
-
-                imu_msg.linear_acceleration.x = float(data.get("linear_acceleration_x", 0.0))
-                imu_msg.linear_acceleration.y = float(data.get("linear_acceleration_y", 0.0))
-                imu_msg.linear_acceleration.z = float(data.get("linear_acceleration_z", 0.0))
-
-                self.imu_pub.publish(imu_msg)
-            except Exception as e:
-                self.get_logger().warn(f"IMU publish error: {e}")
-
-            # expected numeric encoder fields a,b,c
-            try:
-                raw = [int(data.get('a', 0)), int(data.get('b', 0)), int(data.get('c', 0))]
-            except Exception:
-                self.get_logger().warn(f"Encoder values not ints (ignored): {data}")
-                continue
-
-            # map + sign
-            mapped = [0] * len(self.pods)
-            for i_in, val in enumerate(raw):
-                pod_idx = self.encoder_map[i_in] if i_in < len(self.encoder_map) else i_in
-                sign = int(self.encoder_signs[i_in]) if i_in < len(self.encoder_signs) else 1
-                mapped[pod_idx] = int(sign * val)
-
-            ok = self._handle_sample(mapped, sample_time_sec)
-            if ok:
-                processed_any = True
-
-        if not processed_any:
+            data = json.loads(line)
+        except Exception:
+            self.get_logger().warn(f"Bad JSON (ignored): {line}")
             return
 
-    def _auto_select_serial_port(self, scan_baud=None, read_timeout=0.5, max_lines=20):
-        """
-        Scan available serial ports, open each briefly, read up to max_lines JSON lines,
-        and select the port that publishes a JSON object with "name" == "STM_ENCODER.PWM".
-        Returns the device string (e.g. '/dev/ttyACM0') or None if none matched.
-        """
+        # sample timestamp: prefer MCU provided ms timestamp "time_ms"
+        sample_time_sec = None
         try:
-            ports = list_ports.comports()
+            if 'time_ms' in data:
+                sample_time_sec = float(data.get('time_ms')) * 1e-3
+        except Exception:
+            sample_time_sec = None
+
+        if sample_time_sec is None:
+            now_time = self.get_clock().now().to_msg()
+            sample_time_sec = now_time.sec + now_time.nanosec * 1e-9
+
+        # ---------------- IMU publishing ----------------
+        try:
+            imu_msg = Imu()
+            # put MCU timestamp into IMU header so all sensors share same time base
+            sec = int(sample_time_sec)
+            nsec = int((sample_time_sec - sec) * 1e9)
+            imu_msg.header.stamp.sec = sec
+            imu_msg.header.stamp.nanosec = nsec
+            imu_msg.header.frame_id = self.frame_base
+
+            imu_msg.orientation.x = float(data.get("orientation_x", 0.0))
+            imu_msg.orientation.y = float(data.get("orientation_y", 0.0))
+            imu_msg.orientation.z = float(data.get("orientation_z", 0.0))
+            imu_msg.orientation.w = float(data.get("orientation_w", 1.0))
+
+            imu_msg.angular_velocity.x = float(data.get("angular_velocity_x", 0.0))
+            imu_msg.angular_velocity.y = float(data.get("angular_velocity_y", 0.0))
+            imu_msg.angular_velocity.z = float(data.get("angular_velocity_z", 0.0))
+
+            imu_msg.linear_acceleration.x = float(data.get("linear_acceleration_x", 0.0))
+            imu_msg.linear_acceleration.y = float(data.get("linear_acceleration_y", 0.0))
+            imu_msg.linear_acceleration.z = float(data.get("linear_acceleration_z", 0.0))
+
+            self.imu_pub.publish(imu_msg)
         except Exception as e:
-            self.get_logger().warn(f"list_ports.comports() failed: {e}")
-            return None
+            self.get_logger().warn(f"IMU publish error: {e}")
 
-        for p in ports:
-            port_name = p.device
-            try:
-                ser = serial.Serial(port_name, scan_baud if scan_baud else self.baudrate, timeout=read_timeout)
-                # small settle
-                time.sleep(0.02)
-            except Exception as e:
-                # cannot open this port; skip
-                self.get_logger().debug(f"Cannot open {port_name}: {e}")
-                continue
+        # expected numeric encoder fields a,b,c
+        try:
+            raw = [int(data.get('a', 0)), int(data.get('b', 0)), int(data.get('c', 0))]
+        except Exception:
+            self.get_logger().warn(f"Encoder values not ints (ignored): {data}")
+            return
 
-            found = False
-            try:
-                lines_read = 0
-                while lines_read < max_lines:
-                    raw = ser.readline()
-                    if not raw:
-                        break
-                    lines_read += 1
-                    try:
-                        s = raw.decode('utf-8', errors='ignore').strip()
-                    except Exception:
-                        continue
-                    if not s:
-                        continue
-                    try:
-                        data = json.loads(s)
-                    except Exception:
-                        continue
-                    name = data.get('Name')
-                    if isinstance(name, str) and name.strip() == 'STM_ENCODER.PWM':
-                        found = True
-                        break
-            finally:
-                try:
-                    ser.close()
-                except Exception:
-                    pass
+        # map + sign
+        mapped = [0] * len(self.pods)
+        for i_in, val in enumerate(raw):
+            pod_idx = self.encoder_map[i_in] if i_in < len(self.encoder_map) else i_in
+            sign = int(self.encoder_signs[i_in]) if i_in < len(self.encoder_signs) else 1
+            mapped[pod_idx] = int(sign * val)
 
-            if found:
-                return port_name
+        self._handle_sample(mapped, sample_time_sec)
 
-        return None
 
 def main(args=None):
     rclpy.init(args=args)
@@ -459,10 +332,6 @@ def main(args=None):
         pass
     finally:
         node.get_logger().info("Shutting down")
-        try:
-            node.ser.close()
-        except Exception:
-            pass
         node.destroy_node()
         rclpy.shutdown()
 

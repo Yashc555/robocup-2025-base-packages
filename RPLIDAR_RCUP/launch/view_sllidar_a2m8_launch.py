@@ -96,12 +96,12 @@ def generate_launch_description():
             output='screen'
         ),
         
-        Node(
-            package='serial_motor_demo',  # 👉 replace this with your actual package name
-            executable='scan_timestamp_fixer',
-            name='scan_timestamp_fixer',
-            output='screen'
-        ),
+        # Node(
+        #     package='serial_motor_demo',  # 👉 replace this with your actual package name
+        #     executable='scan_timestamp_fixer',
+        #     name='scan_timestamp_fixer',
+        #     output='screen'
+        # ),
 
         # Static transforms
         Node(

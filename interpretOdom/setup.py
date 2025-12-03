@@ -30,6 +30,7 @@ setup(
             'two_tracking_dead_wheel_node = interpretOdom.two_tracking_dead_wheel_odom:main',
             'test_send_recieve_serial_json = interpretOdom.serial_data_send_recieve_test:main', 
             'new_pid_controller = interpretOdom.new_pid_controller:main',
+            'serial_arbiter = interpretOdom.serial_arbiter:main',
             ],
     },
 )

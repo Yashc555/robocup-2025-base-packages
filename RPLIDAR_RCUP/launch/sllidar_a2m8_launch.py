@@ -15,7 +15,7 @@ def generate_launch_description():
     frame_id = LaunchConfiguration('frame_id', default='laser')
     inverted = LaunchConfiguration('inverted', default='false')
     angle_compensate = LaunchConfiguration('angle_compensate', default='true')
-    scan_mode = LaunchConfiguration('scan_mode', default='Standard')
+    scan_mode = LaunchConfiguration('scan_mode', default='Boost')
     
     # RViz config path
     rviz_config_dir = os.path.join(
@@ -47,7 +47,7 @@ def generate_launch_description():
                 'inverted': inverted,
                 'angle_compensate': angle_compensate,
                 'scan_mode': scan_mode,
-                'queue_size': 10  # Increase queue size (default is 10, try increasing it)
+                'queue_size': 100  # Increase queue size (default is 10, try increasing it)
             }],
             output='screen',
             remappings=[('/scan', '/laser_scan')]
