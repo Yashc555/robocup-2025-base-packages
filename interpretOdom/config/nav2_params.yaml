@@ -19,9 +19,10 @@ controller_server:
     controller_frequency: 20.0
 
     # allow lateral motion (mecanum)
-    min_x_velocity_threshold: 0.0001
-    min_y_velocity_threshold: 0.0001
-    min_theta_velocity_threshold: 0.0001
+    min_y_velocity_threshold: 0.01    # was 0.0001
+    min_x_velocity_threshold: 0.01    # was 0.0001
+    min_theta_velocity_threshold: 0.01
+
 
     progress_checker_plugins: ["progress_checker"]
     goal_checker_plugins: ["goal_checker"]
@@ -34,8 +35,8 @@ controller_server:
 
     goal_checker:
       plugin: "nav2_controller::SimpleGoalChecker"
-      xy_goal_tolerance: 0.12
-      yaw_goal_tolerance: 0.12
+      xy_goal_tolerance: 0.15
+      yaw_goal_tolerance: 0.20
       stateful: true
 
     FollowPath:
@@ -43,35 +44,34 @@ controller_server:
       debug_trajectory_details: false
 
       # velocities - conservative, increase after testing
-      min_vel_x: 0.0
-      min_vel_y: -0.06      # allow small lateral motion
+      min_vel_x: -0.12
+      min_vel_y: -0.12      # allow symmetric lateral motion for holonomic control
       max_vel_x: 0.12
-      max_vel_y: 0.06
+      max_vel_y: 0.12
       max_vel_theta: 0.5
 
       min_speed_xy: 0.0
       max_speed_xy: 0.12
       min_speed_theta: 0.0
 
-      # very low accelerations for stability
-      acc_lim_x: 0.25
-      acc_lim_y: 0.25
-      acc_lim_theta: 0.20
-      decel_lim_x: -0.35
-      decel_lim_y: -0.35
-      decel_lim_theta: -0.30
+      # accelerations / decelerations (DWB)
+      acc_lim_x: 0.45       
+      acc_lim_y: 0.45       
+      acc_lim_theta: 0.35
+      decel_lim_x: -0.5       
+      decel_lim_y: -0.5
+      decel_lim_theta: -0.45
 
       # sampling and horizon
       vx_samples: 16
-      vy_samples: 7
+      vy_samples: 16         # increased lateral samples to match holonomic motion
       vtheta_samples: 16
-      sim_time: 1.0
+      sim_time: 0.4
 
       linear_granularity: 0.04
       angular_granularity: 0.03
       transform_tolerance: 0.2
 
-      xy_goal_tolerance: 0.10
       trans_stopped_velocity: 0.03
 
       short_circuit_trajectory_evaluation: true
@@ -91,22 +91,22 @@ controller_server:
         scale: 0.03
 
       GoalAlign:
-        scale: 6.0
+        scale: 3.0
         forward_point_distance: 0.08
 
       PathAlign:
-        scale: 8.0
+        scale: 4.0
         forward_point_distance: 0.08
 
       PathDist:
-        scale: 12.0
+        scale: 8.0
 
       GoalDist:
-        scale: 6.0
+        scale: 630
 
       RotateToGoal:
-        scale: 4.0
-        slowing_factor: 3.0
+        scale: 2.0
+        slowing_factor: 2.0
         lookahead_time: -1.0
 
 local_costmap:
@@ -120,7 +120,10 @@ local_costmap:
     width: 6.0
     height: 6.0
     resolution: 0.05
-    robot_radius: 0.18
+    # polygon footprint for rectangular robot centered at base_link
+    # total length = 0.80 m -> half-length = 0.40
+    # total width  = 0.55 m -> half-width  = 0.275
+    footprint: [[0.40, 0.275], [0.40, -0.275], [-0.40, -0.275], [-0.40, 0.275]]
     plugins: ["obstacle_layer", "inflation_layer"]
 
     obstacle_layer:
@@ -151,7 +154,8 @@ global_costmap:
     global_frame: map_2
     robot_base_frame: base_link
     resolution: 0.05
-    robot_radius: 0.18
+    # polygon footprint used for global costmap as well (centered at base_link)
+    footprint: [[0.40, 0.275], [0.40, -0.275], [-0.40, -0.275], [-0.40, 0.275]]
     track_unknown_space: true
     plugins: ["static_layer", "obstacle_layer", "inflation_layer"]
 
@@ -201,13 +205,14 @@ velocity_smoother:
     linear_velocity_constraints:
       min_velocity: -0.2
       max_velocity: 0.2
-      min_acceleration: -0.25
-      max_acceleration: 0.25
+      # tightened to match DWB acc/decel behaviour
+      min_acceleration: -0.5
+      max_acceleration: 0.45
     angular_velocity_constraints:
       min_velocity: -0.4
       max_velocity: 0.4
-      min_acceleration: -0.25
-      max_acceleration: 0.25
+      min_acceleration: -0.45
+      max_acceleration: 0.35
     odom_topic: "/odom"
     odom_duration: 0.1
 
