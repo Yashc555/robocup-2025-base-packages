@@ -25,16 +25,16 @@ def generate_launch_description():
         'openloop_delay', default_value='0.0', description='Delay (sec) before starting OpenLoop_controller'
     )
     declare_tracking_delay = DeclareLaunchArgument(
-        'tracking_delay', default_value='0.0', description='Delay (sec) before starting tracking_dead_wheel_node'
+        'tracking_delay', default_value='1.0', description='Delay (sec) before starting tracking_dead_wheel_node'
     )
     declare_twist_mux_delay = DeclareLaunchArgument(
-        'twist_mux_delay', default_value='0.0', description='Delay (sec) before starting twist_mux'
+        'twist_mux_delay', default_value='1.5', description='Delay (sec) before starting twist_mux'
     )
     declare_serial_arbiter_delay = DeclareLaunchArgument(
         'serial_arbiter_delay', default_value='0.0', description='Delay (sec) before starting serial_arbiter'
     )
     declare_cmd_vel_to_pwm_delay = DeclareLaunchArgument(
-        'cmd_vel_to_pwm_delay', default_value='0.0', description='Delay (sec) before starting cmd_vel_to_pwm'
+        'cmd_vel_to_pwm_delay', default_value='2.0', description='Delay (sec) before starting cmd_vel_to_pwm'
     )
     declare_sllidar_delay = DeclareLaunchArgument(
         'sllidar_delay', default_value='5.0', description='Delay (sec) before including sllidar launch'

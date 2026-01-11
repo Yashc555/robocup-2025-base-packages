@@ -1,4 +1,6 @@
-# nav2_params_debug.yaml
+# nav2_params_minimal.yaml
+# map frame is map_2, base frame is base_link, odom topic is /odom
+
 planner_server:
   ros__parameters:
     use_sim_time: false
@@ -7,7 +9,7 @@ planner_server:
     GridBased:
       plugin: "nav2_navfn_planner::NavfnPlanner"
       tolerance: 0.5
-      use_astar: false
+      use_astar: true
       allow_unknown: true
 
 controller_server:
@@ -15,9 +17,11 @@ controller_server:
     use_sim_time: false
     controller_frequency: 20.0
 
-    min_y_velocity_threshold: 0.01
-    min_x_velocity_threshold: 0.01
+    # allow lateral motion (mecanum)
+    min_y_velocity_threshold: 0.01    # was 0.0001
+    min_x_velocity_threshold: 0.01    # was 0.0001
     min_theta_velocity_threshold: 0.01
+
 
     progress_checker_plugins: ["progress_checker"]
     goal_checker_plugins: ["goal_checker"]
@@ -38,30 +42,30 @@ controller_server:
       plugin: "dwb_core::DWBLocalPlanner"
       debug_trajectory_details: false
 
-      # velocities with usable reverse capability
-      min_vel_x: -0.25
-      max_vel_x:  0.12
-      min_vel_y: -0.12
-      max_vel_y:  0.12
-      max_vel_theta: 0.25
+      # velocities - conservative, increase after testing
+      min_vel_x: -0.12
+      min_vel_y: -0.12      # allow symmetric lateral motion for holonomic control
+      max_vel_x: 0.12
+      max_vel_y: 0.12
+      max_vel_theta: 0.5
 
       min_speed_xy: 0.0
       max_speed_xy: 0.12
       min_speed_theta: 0.0
 
-      # accelerations / decelerations
-      acc_lim_x: 0.30
-      acc_lim_y: 0.30
-      acc_lim_theta: 0.22
-      decel_lim_x: 0.50
-      decel_lim_y: 0.50
-      decel_lim_theta: 0.45
+      # accelerations / decelerations (DWB)
+      acc_lim_x: 0.45       
+      acc_lim_y: 0.45       
+      acc_lim_theta: 0.35
+      decel_lim_x: -0.5       
+      decel_lim_y: -0.5
+      decel_lim_theta: -0.45
 
       # sampling and horizon
       vx_samples: 16
-      vy_samples: 32
+      vy_samples: 16         # increased lateral samples to match holonomic motion
       vtheta_samples: 16
-      sim_time: 0.40
+      sim_time: 0.4
 
       linear_granularity: 0.04
       angular_granularity: 0.03
@@ -77,33 +81,32 @@ controller_server:
         - RotateToGoal
         - Oscillation
         - BaseObstacle
+        - GoalAlign
         - PathAlign
         - PathDist
-        - GoalAlign
         - GoalDist
 
-      # critic tuning: keep values small so lateral/reverse trajectories get a chance
       BaseObstacle:
         scale: 0.03
 
+      GoalAlign:
+        scale: 3.0
+        forward_point_distance: 0.08
+
       PathAlign:
-        scale: 0.6
+        scale: 4.0
         forward_point_distance: 0.08
 
       PathDist:
-        scale: 1.5
-
-      GoalAlign:
-        scale: 0.8
-        forward_point_distance: 0.08
+        scale: 8.0
 
       GoalDist:
-        scale: 1.5
+        scale: 630
 
       RotateToGoal:
-        scale: 0.8
-        slowing_factor: 1.8
-        lookahead_time: 0.08
+        scale: 2.0
+        slowing_factor: 2.0
+        lookahead_time: -1.0
 
 local_costmap:
   ros__parameters:
@@ -116,6 +119,9 @@ local_costmap:
     width: 6.0
     height: 6.0
     resolution: 0.05
+    # polygon footprint for rectangular robot centered at base_link
+    # total length = 0.80 m -> half-length = 0.40
+    # total width  = 0.55 m -> half-width  = 0.275
     footprint: [[0.40, 0.275], [0.40, -0.275], [-0.40, -0.275], [-0.40, 0.275]]
     plugins: ["obstacle_layer", "inflation_layer"]
 
@@ -147,6 +153,7 @@ global_costmap:
     global_frame: map_2
     robot_base_frame: base_link
     resolution: 0.05
+    # polygon footprint used for global costmap as well (centered at base_link)
     footprint: [[0.40, 0.275], [0.40, -0.275], [-0.40, -0.275], [-0.40, 0.275]]
     track_unknown_space: true
     plugins: ["static_layer", "obstacle_layer", "inflation_layer"]
@@ -183,6 +190,10 @@ behavior_server:
   ros__parameters:
     use_sim_time: false
 
+planner_server:
+  ros__parameters:
+    use_sim_time: false
+
 velocity_smoother:
   ros__parameters:
     use_sim_time: false
@@ -191,10 +202,11 @@ velocity_smoother:
     input_cmd_vel_topic: "cmd_vel_nav"
     output_cmd_vel_topic: "cmd_vel"
     linear_velocity_constraints:
-      min_velocity: -0.18
-      max_velocity: 0.18
-      min_acceleration: -0.4
-      max_acceleration: 0.35
+      min_velocity: -0.2
+      max_velocity: 0.2
+      # tightened to match DWB acc/decel behaviour
+      min_acceleration: -0.5
+      max_acceleration: 0.45
     angular_velocity_constraints:
       min_velocity: -0.4
       max_velocity: 0.4
@@ -219,6 +231,6 @@ lifecycle_manager_navigation:
 map_server:
   ros__parameters:
     use_sim_time: false
-    yaml_filename: ""
+    yaml_filename: ""      # set via launch arg or map:=...
     frame_id: map_2
     topic_name: map_2

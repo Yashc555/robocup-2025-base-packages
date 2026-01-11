@@ -75,8 +75,12 @@ class SerialArbiter(Node):
                 self.get_logger().info("Closed serial")
 
     def _run(self):
+        consecutive_empty_reads = 0
+        max_empty_reads = 10  # Much more lenient - allow gaps in data
+        
         while self.running:
             if self.ser is None:
+                consecutive_empty_reads = 0
                 ok = self._open_serial()
                 if not ok:
                     time.sleep(1.0)
@@ -85,20 +89,36 @@ class SerialArbiter(Node):
                 with self.ser_lock:
                     s = self.ser
                 if s is None:
+                    consecutive_empty_reads = 0
                     continue
                 raw = s.readline()
                 if not raw:
+                    consecutive_empty_reads += 1
+                    # Only close if we have many consecutive empty reads (indicates real disconnect)
+                    if consecutive_empty_reads >= max_empty_reads:
+                        self.get_logger().warn(f"Persistent empty reads ({max_empty_reads}), may indicate real disconnect. Reconnecting...")
+                        self._close_serial()
+                        time.sleep(1.0)
+                    # Just continue - don't treat normal gaps as errors
                     continue
+                
+                # We got data - reset the empty read counter
+                consecutive_empty_reads = 0
+                
                 line = raw.decode('utf-8', errors='ignore').strip()
                 if not line:
                     continue
                 self.last_rx_time = time.time()
                 msg = String(); msg.data = line
                 self.pub_in.publish(msg)
-            except Exception as e:
-                self.get_logger().warn(f"Serial read error: {e}")
+            except serial.SerialException as e:
+                # Only treat true serial exceptions (actual HW disconnect) seriously
+                self.get_logger().error(f"Serial hardware error: {e}")
                 self._close_serial()
-                time.sleep(0.5)
+                time.sleep(1.0)
+            except Exception as e:
+                self.get_logger().warn(f"Unexpected error: {e}")
+                time.sleep(0.1)
 
     def cb_out(self, msg: String):
         payload = msg.data
