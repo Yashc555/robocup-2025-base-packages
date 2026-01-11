@@ -51,14 +51,14 @@ class DeadWheelOdomNode(Node):
         self.declare_parameter(
             'pods',
             [
-                0.0,  0.095, math.pi/2.0,
-                -0.1, 0.0,  0.0,
-                0.095,  0.0,0.0
+                0.0,  0.106, math.pi/2.0,
+                -0.07, 0.064,  0.0,
+                0.075,  0.064, 0.0
             ]
         )
 
         self.declare_parameter('encoder_map', [0, 1, 2])
-        self.declare_parameter('encoder_signs', [1, 1, 1])
+        self.declare_parameter('encoder_signs', [-1, 1, -1])
 
         # --------------------------------
         # load params
