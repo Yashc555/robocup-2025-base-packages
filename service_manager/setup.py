@@ -24,6 +24,7 @@ setup(
     },
     entry_points={
         'console_scripts': [
+            'zed_service_node = service_manager.zed_service:main',
         ],
     },
 )
