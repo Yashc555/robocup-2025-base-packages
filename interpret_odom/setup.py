@@ -1,6 +1,6 @@
 from setuptools import find_packages, setup
 
-package_name = 'interpretOdom'
+package_name = 'interpret_odom'
 
 setup(
     name=package_name,
@@ -26,11 +26,11 @@ setup(
     },
     entry_points={
         'console_scripts': [
-            'tracking_dead_wheel_node = interpretOdom.tracking_dead_wheel_odom:main',
-            'two_tracking_dead_wheel_node = interpretOdom.two_tracking_dead_wheel_odom:main',
-            'test_send_recieve_serial_json = interpretOdom.serial_data_send_recieve_test:main', 
-            'new_pid_controller = interpretOdom.new_pid_controller:main',
-            'serial_arbiter = interpretOdom.serial_arbiter:main',
+            'tracking_dead_wheel_node = interpret_odom.tracking_dead_wheel_odom:main',
+            'two_tracking_dead_wheel_node = interpret_odom.two_tracking_dead_wheel_odom:main',
+            'test_send_recieve_serial_json = interpret_odom.serial_data_send_recieve_test:main', 
+            'new_pid_controller = interpret_odom.new_pid_controller:main',
+            'serial_arbiter = interpret_odom.serial_arbiter:main',
             ],
     },
 )

@@ -10,9 +10,9 @@ from ament_index_python.packages import get_package_share_directory
 
 
 def generate_launch_description():
-    # Node to run: ros2 run interpretOdom tracking_dead_wheel_node
+    # Node to run: ros2 run interpret_odom tracking_dead_wheel_node
     tracking_node = Node(
-        package='interpretOdom',
+        package='interpret_odom',
         executable='tracking_dead_wheel_node',
         name='tracking_dead_wheel_node',
         output='screen'
