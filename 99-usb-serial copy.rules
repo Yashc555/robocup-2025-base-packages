@@ -1,0 +1,20 @@
+#file name: 99-usb-serial.rules
+#99 is so that it is run last and overrides other rules claiming the port
+
+#put this file in /etc/udev/rules.d/
+
+#get usb serial id of stm[ATTRS{serial} wali value] using the command: udevadm info -a -n /dev/ttyACM0 | grep '{serial}' | head -n1
+#run this command with only 1 stm plugged in
+
+# encoder stm
+SUBSYSTEM=="tty", ATTRS{serial}=="8D6F44515454", SYMLINK+="pcb_id_1"
+
+# imu stm
+SUBSYSTEM=="tty", ATTRS{serial}=="3161354C3034", SYMLINK+="stm_imu_usb"
+
+
+#similarly add rules for other arm wale stms
+
+#after changing file run these 2 commands:
+#sudo udevadm control --reload-rules
+#sudo udevadm trigger

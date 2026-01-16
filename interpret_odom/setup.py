@@ -10,8 +10,8 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
-                ('share/' + package_name + '/launch', ['launch/odometry.launch.py','launch/rtab_bot.launch.py']),
-
+                ('share/' + package_name + '/launch', ['launch/navigation_support_nodes.launch.py']),
+        ('share/' + package_name + '/config', ['config/twist_mux.yaml', 'config/nav2_params.yaml', 'config/dead_wheel_w_imu.yaml']),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -27,10 +27,9 @@ setup(
     entry_points={
         'console_scripts': [
             'tracking_dead_wheel_node = interpret_odom.tracking_dead_wheel_odom:main',
-            'two_tracking_dead_wheel_node = interpret_odom.two_tracking_dead_wheel_odom:main',
             'test_send_recieve_serial_json = interpret_odom.serial_data_send_recieve_test:main', 
-            'new_pid_controller = interpret_odom.new_pid_controller:main',
             'serial_arbiter = interpret_odom.serial_arbiter:main',
+            
             ],
     },
 )
