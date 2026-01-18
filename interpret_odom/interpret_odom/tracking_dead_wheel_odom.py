@@ -49,17 +49,23 @@ class DeadWheelOdomNode(Node):
         self.declare_parameter('marker_scale', [0.2, 0.2, 0.08])
 
         self.declare_parameter(
-            'pods',
+            # 'pods',
+            # [
+            #     0.0,  0.106, math.pi/2.0,
+            #     -0.07, 0.064,  0.0,
+            #     0.075,  0.064, 0.0
+            # ]
+                        'pods',
             [
-                0.0,  0.106, math.pi/2.0,
-                -0.07, 0.064,  0.0,
-                0.075,  0.064, 0.0
+                0.0,  0.124, math.pi/2.0,
+                -0.066, -0.065,  0.0,
+                0.073,  -0.065, 0.0
             ]
         )
 
         self.declare_parameter('encoder_map', [0, 1, 2])
         self.declare_parameter('encoder_signs', [-1, 1, -1])
-
+#+ - +
         # --------------------------------
         # load params
         self.baudrate = self.get_parameter('baudrate').get_parameter_value().integer_value

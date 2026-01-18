@@ -12,12 +12,12 @@ class SerialArbiter(Node):
         super().__init__('serial_arbiter')
         
         # -------- Parameters --------
-        self.declare_parameter('imu_port', '/dev/ttyACM1')
-        self.declare_parameter('enc_port', '/dev/ttyACM0')
+        self.declare_parameter('imu_port', '/dev/stm_imu_usb')
+        self.declare_parameter('enc_port', '/dev/stm_encoder_usb')
         self.declare_parameter('baud', 115200)
         self.declare_parameter('out_topic', 'mcu/in')
         # SET THIS TO FALSE FOR SINGLE STM MODE, TRUE FOR DUAL
-        self.declare_parameter('dual_mcu', False) 
+        self.declare_parameter('dual_mcu', True) 
 
         self.imu_port = self.get_parameter('imu_port').value
         self.enc_port = self.get_parameter('enc_port').value
