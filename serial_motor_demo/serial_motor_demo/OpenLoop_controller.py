@@ -68,10 +68,10 @@ class CmdvelToMcu(Node):
 
         # map to MCU order and sign as before (keep existing mapping)
         pwm_message = {
-            "pwm1": -pwm_values[0],
-            "pwm2": -pwm_values[1],
-            "pwm3": -pwm_values[2],
-            "pwm4": -pwm_values[3]
+            "pwm1": -pwm_values[1],
+            "pwm2": -pwm_values[0],
+            "pwm3": -pwm_values[3],
+            "pwm4": -pwm_values[2]
         }
 
         out = String()

@@ -49,17 +49,28 @@ class DeadWheelOdomNode(Node):
         self.declare_parameter('marker_scale', [0.2, 0.2, 0.08])
 
         self.declare_parameter(
+            #with base upside down
             # 'pods',
             # [
             #     0.0,  0.106, math.pi/2.0,
             #     -0.07, 0.064,  0.0,
             #     0.075,  0.064, 0.0
             # ]
-                        'pods',
+
+            #with glue
+            # 'pods',
+            # [
+            #     0.0,  0.124, math.pi/2.0,
+            #     -0.066, -0.065,  0.0,
+            #     0.073,  -0.065, 0.0
+            # ]
+
+            #with marker on acrylic
+            'pods',
             [
-                0.0,  0.124, math.pi/2.0,
-                -0.066, -0.065,  0.0,
-                0.073,  -0.065, 0.0
+                0.0,  0.114, math.pi/2.0,
+                -0.066, -0.06,  0.0,
+                0.07,  -0.06, 0.0
             ]
         )
 
