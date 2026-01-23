@@ -43,10 +43,10 @@ class FakeBoxesPublisher(Node):
         # Force publish in camera frame so TF->map is used (ignore self.map_msg)
         bb.frame_id = 'camera_link'
         # forward (x) in meters from camera, left/right (y), z height
-        bb.x1, bb.y1, bb.z1 = 1.5, -0.25, 1.2
-        bb.x2, bb.y2, bb.z2 = 1.5,  0.25, 1.2
-        bb.x3, bb.y3, bb.z3 = 2.5,  0.25, 1.2
-        bb.x4, bb.y4, bb.z4 = 2.5, -0.25, 1.2
+        bb.x1, bb.y1, bb.z1 = 2.75, -0.25, 1.2
+        bb.x2, bb.y2, bb.z2 = 2.75,  0.25, 1.2
+        bb.x3, bb.y3, bb.z3 = 3.75,  0.25, 1.2
+        bb.x4, bb.y4, bb.z4 = 3.75, -0.25, 1.2
         self.get_logger().info('Published BoundingBoxes in camera_link frame (forced)')
 
         msg = BoundingBoxes()
