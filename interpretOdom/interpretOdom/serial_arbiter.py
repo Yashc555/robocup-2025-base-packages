@@ -3,149 +3,122 @@ import rclpy
 from rclpy.node import Node
 from std_msgs.msg import String
 from threading import Thread, Lock
-import serial, time
-from serial.tools import list_ports
+import serial
+import json
+import time
 
 class SerialArbiter(Node):
     def __init__(self):
         super().__init__('serial_arbiter')
-        self.declare_parameter('port', '/dev/ttyACM0')
+        
+        # -------- Parameters --------
+        self.declare_parameter('imu_port', '/dev/ttyACM0')
+        self.declare_parameter('enc_port', '/dev/ttyACM1')
         self.declare_parameter('baud', 115200)
-        self.declare_parameter('idle_close', False)
-        self.declare_parameter('idle_timeout', 10.0)
+        self.declare_parameter('out_topic', 'mcu/in')
+        # SET THIS TO FALSE FOR SINGLE STM MODE, TRUE FOR DUAL
+        self.declare_parameter('dual_mcu', True) 
 
-        self.port = self.get_parameter('port').get_parameter_value().string_value
-        self.baud = self.get_parameter('baud').get_parameter_value().integer_value
-        self.idle_close = self.get_parameter('idle_close').get_parameter_value().bool_value
-        self.idle_timeout = float(self.get_parameter('idle_timeout').get_parameter_value().double_value)
+        self.imu_port = self.get_parameter('imu_port').value
+        self.enc_port = self.get_parameter('enc_port').value
+        self.baud = self.get_parameter('baud').value
+        self.out_topic = self.get_parameter('out_topic').value
+        self.dual_mcu = self.get_parameter('dual_mcu').value
 
-        self.ser = None
-        self.ser_lock = Lock()
-        self.last_rx_time = None
+        self.get_logger().info(f"!!! ARBITER LOADED (Dual Mode: {self.dual_mcu}) !!!")
+
+        # -------- State --------
+        self.imu_ser = None
+        self.enc_ser = None
+        self.latest_imu = None
+        self.latest_enc = None
+        self.lock = Lock()
         self.running = True
 
-        # ROS API
-        self.pub_in = self.create_publisher(String, 'mcu/in', 20)
+        # -------- ROS Publishers & Subscribers --------
+        self.pub = self.create_publisher(String, self.out_topic, 20)
         self.sub_out = self.create_subscription(String, 'mcu/out', self.cb_out, 20)
 
-        # thread to read serial
-        self.thread = Thread(target=self._run, daemon=True)
-        self.thread.start()
-        self.create_timer(1.0, self._idle_check)
-
-        self.get_logger().info(f"SerialArbiter starting for {self.port} @ {self.baud}")
-
-    def _open_serial(self):
-        try:
-            ser = serial.Serial(self.port, self.baud, timeout=0.2)
-        except Exception as e:
-            self.get_logger().error(f"open {self.port} failed: {e}")
-            return False
-        # assert terminal lines
-        try:
-            ser.dtr = True
-            ser.rts = False
-        except Exception:
-            pass
-        time.sleep(0.5)
-        try:
-            ser.reset_input_buffer()
-            ser.reset_output_buffer()
-        except Exception:
-            pass
-        # poke newline
-        try:
-            ser.write(b"\n")
-            ser.flush()
-        except Exception:
-            pass
-        with self.ser_lock:
-            self.ser = ser
-        self.get_logger().info(f"Opened {self.port}")
-        return True
-
-    def _close_serial(self):
-        with self.ser_lock:
-            if self.ser:
-                try:
-                    self.ser.close()
-                except Exception:
-                    pass
-                self.ser = None
-                self.get_logger().info("Closed serial")
-
-    def _run(self):
-        consecutive_empty_reads = 0
-        max_empty_reads = 10  # Much more lenient - allow gaps in data
+        # -------- Threads --------
+        if self.dual_mcu:
+            Thread(target=self._imu_reader, daemon=True).start()
         
-        while self.running:
-            if self.ser is None:
-                consecutive_empty_reads = 0
-                ok = self._open_serial()
-                if not ok:
-                    time.sleep(1.0)
-                    continue
-            try:
-                with self.ser_lock:
-                    s = self.ser
-                if s is None:
-                    consecutive_empty_reads = 0
-                    continue
-                raw = s.readline()
-                if not raw:
-                    consecutive_empty_reads += 1
-                    # Only close if we have many consecutive empty reads (indicates real disconnect)
-                    if consecutive_empty_reads >= max_empty_reads:
-                        self.get_logger().warn(f"Persistent empty reads ({max_empty_reads}), may indicate real disconnect. Reconnecting...")
-                        self._close_serial()
-                        time.sleep(1.0)
-                    # Just continue - don't treat normal gaps as errors
-                    continue
-                
-                # We got data - reset the empty read counter
-                consecutive_empty_reads = 0
-                
-                line = raw.decode('utf-8', errors='ignore').strip()
-                if not line:
-                    continue
-                self.last_rx_time = time.time()
-                msg = String(); msg.data = line
-                self.pub_in.publish(msg)
-            except serial.SerialException as e:
-                # Only treat true serial exceptions (actual HW disconnect) seriously
-                self.get_logger().error(f"Serial hardware error: {e}")
-                self._close_serial()
-                time.sleep(1.0)
-            except Exception as e:
-                self.get_logger().warn(f"Unexpected error: {e}")
-                time.sleep(0.1)
+        Thread(target=self._enc_reader, daemon=True).start()
+
+    def _open_serial(self, port):
+        try:
+            ser = serial.Serial(port, self.baud, timeout=0.2)
+            time.sleep(0.5)
+            ser.reset_input_buffer()
+            self.get_logger().info(f"Opened {port}")
+            return ser
+        except Exception as e:
+            self.get_logger().error(f"Failed to open {port}: {e}")
+            return None
 
     def cb_out(self, msg: String):
-        payload = msg.data
-        if not payload.endswith("\n"):
-            payload = payload + "\n"
-        with self.ser_lock:
-            if self.ser and self.ser.is_open:
-                try:
-                    self.ser.write(payload.encode())
-                    self.ser.flush()
-                except Exception as e:
-                    self.get_logger().warn(f"Serial write failed: {e}")
-            else:
-                self.get_logger().warn("Serial not open; dropping outgoing message")
+        payload = msg.data if msg.data.endswith("\n") else msg.data + "\n"
+        target_ser = self.enc_ser
+        if target_ser and target_ser.is_open:
+            try:
+                target_ser.write(payload.encode())
+                target_ser.flush() 
+            except Exception as e:
+                self.get_logger().warn(f"Serial write failed: {e}")
 
-    def _idle_check(self):
-        if not self.idle_close:
-            return
-        if self.last_rx_time is None:
-            return
-        if time.time() - self.last_rx_time > self.idle_timeout:
-            self._close_serial()
-            self.last_rx_time = None
+    def _imu_reader(self):
+        self.imu_ser = self._open_serial(self.imu_port)
+        while self.running and self.imu_ser:
+            try:
+                line = self.imu_ser.readline().decode(errors='ignore').strip()
+                if "{" not in line: continue
+                data = json.loads(line[line.find("{"):])
+                with self.lock:
+                    self.latest_imu = data
+                self._try_publish()
+            except Exception:
+                time.sleep(1.0)
+                if not self.imu_ser or not self.imu_ser.is_open:
+                     self.imu_ser = self._open_serial(self.imu_port)
+
+    def _enc_reader(self):
+        self.enc_ser = self._open_serial(self.enc_port)
+        while self.running and self.enc_ser:
+            try:
+                line = self.enc_ser.readline().decode(errors='ignore').strip()
+                if "{" not in line: continue
+                data = json.loads(line[line.find("{"):])
+                with self.lock:
+                    self.latest_enc = data
+                self._try_publish()
+            except Exception:
+                time.sleep(1.0)
+                if not self.enc_ser or not self.enc_ser.is_open:
+                     self.enc_ser = self._open_serial(self.enc_port)
+
+    def _try_publish(self):
+        with self.lock:
+            # Check conditions based on mode
+            if self.latest_enc is None:
+                return
+            if self.dual_mcu and self.latest_imu is None:
+                return
+
+            # Construct message
+            merged = {**self.latest_enc}
+            if self.dual_mcu and self.latest_imu:
+                merged.update(self.latest_imu)
+            
+            merged["timestamp"] = time.time()
+
+        msg = String()
+        msg.data = json.dumps(merged)
+        self.pub.publish(msg)
 
     def destroy_node(self):
         self.running = False
-        self._close_serial()
+        for s in [self.imu_ser, self.enc_ser]:
+            if s and s.is_open: s.close()
         super().destroy_node()
 
 def main(args=None):
@@ -157,7 +130,7 @@ def main(args=None):
         pass
     finally:
         node.destroy_node()
-        rclpy.shutdown()
+        if rclpy.ok(): rclpy.shutdown()
 
 if __name__ == '__main__':
     main()

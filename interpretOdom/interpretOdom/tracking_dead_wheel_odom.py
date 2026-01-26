@@ -58,7 +58,7 @@ class DeadWheelOdomNode(Node):
         )
 
         self.declare_parameter('encoder_map', [0, 1, 2])
-        self.declare_parameter('encoder_signs', [1, 1, -1])
+        self.declare_parameter('encoder_signs', [-1, 1, -1])
 
         # --------------------------------
         # load params

@@ -15,7 +15,7 @@ def generate_launch_description():
     inverted = LaunchConfiguration('inverted', default='true')
     angle_compensate = LaunchConfiguration('angle_compensate', default='true')
     # Available scan modes: 'Standard', 'Express', 'Boost', 'Sensitivity'
-    scan_mode = LaunchConfiguration('scan_mode', default='Boost')
+    scan_mode = LaunchConfiguration('scan_mode', default='Standard')
 
     # RViz config path
     rviz_config_dir = os.path.join(

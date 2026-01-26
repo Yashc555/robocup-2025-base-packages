@@ -14,7 +14,7 @@ class CmdvelToMcu(Node):
         self.declare_parameter('wheel_L', 0.305)
         self.declare_parameter('wheel_W', 0.2175)
         # pwm limits and scaling
-        self.declare_parameter('max_pwm', 35)
+        self.declare_parameter('max_pwm', 40) #max_pwm is 80,so the percent is 35/80 precent..
         self.declare_parameter('scale_factor', 100.0)   # multiplies wheel speed (m/s) -> pwm units
         # idle timeout (seconds) after which we send zeros
         self.declare_parameter('idle_timeout', 0.05)
@@ -68,10 +68,10 @@ class CmdvelToMcu(Node):
 
         # map to MCU order and sign as before (keep existing mapping)
         pwm_message = {
-            "pwm1": -pwm_values[0],
-            "pwm2": -pwm_values[1],
+            "pwm1": pwm_values[0],
+            "pwm2": pwm_values[1],
             "pwm3": pwm_values[2],
-            "pwm4": -pwm_values[3]
+            "pwm4": pwm_values[3]
         }
 
         out = String()
