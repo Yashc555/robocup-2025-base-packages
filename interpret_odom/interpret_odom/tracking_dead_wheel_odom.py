@@ -38,9 +38,9 @@ class DeadWheelOdomNode(Node):
 
         # params
         self.declare_parameter('baudrate', 115200)
-        self.declare_parameter('ticks_per_rev_front', 2400)
-        self.declare_parameter('ticks_per_rev_left', 2400)
-        self.declare_parameter('ticks_per_rev_right', 2400)
+        self.declare_parameter('ticks_per_rev_front', 1200)
+        self.declare_parameter('ticks_per_rev_left', 1200)
+        self.declare_parameter('ticks_per_rev_right', 1200)
         self.declare_parameter('wheel_radius', 0.03)
         self.declare_parameter('frame_odom', 'odom')
         self.declare_parameter('frame_base', 'base_link')
@@ -76,11 +76,12 @@ class DeadWheelOdomNode(Node):
 
 
             #my bs
+            #0.03 radians
                         'pods',
             [
-                0.0,  0.124, math.pi/2.0,
-                -0.068, -0.06,  0.0,
-                0.068,  -0.06, 0.0
+                0.0,  0.124, (math.pi/2.0),
+                -0.066, -0.06,  0.0,
+                0.07,  -0.06, 0.0
             ]
         )
 

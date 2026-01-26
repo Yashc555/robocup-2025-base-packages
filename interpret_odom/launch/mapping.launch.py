@@ -12,7 +12,7 @@ def generate_launch_description():
     sll_dir = get_package_share_directory('sllidar_ros2')
 
     channel_type = LaunchConfiguration('channel_type', default='serial')
-    serial_port = LaunchConfiguration('serial_port', default='/dev/ttyUSB0')
+    serial_port = LaunchConfiguration('serial_port', default='/dev/lidar')
     serial_baudrate = LaunchConfiguration('serial_baudrate', default='115200')
     frame_id = LaunchConfiguration('frame_id', default='laser')
     inverted = LaunchConfiguration('inverted', default='true')
@@ -42,10 +42,17 @@ def generate_launch_description():
 
 
 
+    # tf_footprint = Node(
+    #     package='tf2_ros', executable='static_transform_publisher',
+    #     arguments=['--x', '0', '--y', '0', '--z', '0', '--yaw', '0', '--pitch', '0', '--roll', '0', '--frame-id', 'base_footprint', '--child-frame-id', 'base_link']
+    # )
+
     tf_footprint = Node(
-        package='tf2_ros', executable='static_transform_publisher',
-        arguments=['--x', '0', '--y', '0', '--z', '0', '--yaw', '0', '--pitch', '0', '--roll', '0', '--frame-id', 'base_footprint', '--child-frame-id', 'base_link']
-    )
+    package='tf2_ros', executable='static_transform_publisher',
+    # Swapped frame-id and child-frame-id
+    arguments=['--x', '0', '--y', '0', '--z', '0', '--yaw', '0', '--pitch', '0', '--roll', '0', 
+               '--frame-id', 'base_link', '--child-frame-id', 'base_footprint']
+)
     
     tf_laser = Node(
         package='tf2_ros', executable='static_transform_publisher',
