@@ -38,19 +38,48 @@ class DeadWheelOdomNode(Node):
 
         # params
         self.declare_parameter('baudrate', 115200)
-        self.declare_parameter('ticks_per_rev_front', 2400)
-        self.declare_parameter('ticks_per_rev_left', 2400)
-        self.declare_parameter('ticks_per_rev_right', 2400)
-        # wheel_r is the radius of the dead wheel (meters)
+        self.declare_parameter('ticks_per_rev_front', 1200)
+        self.declare_parameter('ticks_per_rev_left', 1200)
+        self.declare_parameter('ticks_per_rev_right', 1200)
         self.declare_parameter('wheel_radius', 0.03)
         self.declare_parameter('frame_odom', 'odom')
         self.declare_parameter('frame_base', 'base_link')
         self.declare_parameter('publish_marker', True)
         self.declare_parameter('marker_scale', [0.2, 0.2, 0.08])
 
+        # ---------------------------------------------------------
+        # CRITICAL: 'pods' MUST be defined in this specific order:
+        # [ POD_FRONT, POD_LEFT, POD_RIGHT ]
+        # ---------------------------------------------------------
         self.declare_parameter(
-            'pods',
+            #with base upside down
+            # 'pods',
+            # [
+            #     0.0,  0.106, math.pi/2.0,
+            #     -0.07, 0.064,  0.0,
+            #     0.075,  0.064, 0.0
+            # ]
+            #with glue
+            # 'pods',
+            # [
+            #     0.0,  0.124, math.pi/2.0,
+            #     -0.066, -0.065,  0.0,
+            #     0.073,  -0.065, 0.0
+            # ]
+            # #with marker on acrylic
+            # 'pods',
+            # [
+            #     0.0,  0.124, math.pi/2.0,
+            #     -0.066, -0.06,  0.0,
+            #     0.07,  -0.06, 0.0
+            # ]
+
+
+            #my bs
+            #0.03 radians
+                        'pods',
             [
+<<<<<<< HEAD:interpretOdom/interpretOdom/tracking_dead_wheel_odom.py
                 0.0,  0.106, math.pi/2.0,
                 -0.07, 0.064,  0.0,
                 0.075,  0.064, 0.0
@@ -59,6 +88,21 @@ class DeadWheelOdomNode(Node):
 
         self.declare_parameter('encoder_map', [0, 1, 2])
         self.declare_parameter('encoder_signs', [-1, 1, -1])
+=======
+                0.0,  0.124, (math.pi/2.0),
+                -0.066, -0.06,  0.0,
+                0.07,  -0.06, 0.0
+            ]
+        )
+
+        # MAPPING PARAMETERS
+        # Defines which input key (a,b,c) goes to which physical wheel.
+        # Order: [Key for Front, Key for Left, Key for Right]
+        self.declare_parameter('inputs_front_left_right', ['a', 'c', 'b'])
+
+        # Signs apply to the INPUT KEYS [a, b, c] directly
+        self.declare_parameter('encoder_signs', [1, -1, 1])
+>>>>>>> c08b57bedbf8fe37f296aafaad7a51a286fda3e0:interpret_odom/interpret_odom/tracking_dead_wheel_odom.py
 
         # --------------------------------
         # load params
@@ -78,11 +122,12 @@ class DeadWheelOdomNode(Node):
         for i in range(0, len(pods_param), 3):
             self.pods.append((pods_param[i], pods_param[i+1], pods_param[i+2]))
 
-        self.encoder_map = self.get_parameter('encoder_map').get_parameter_value().integer_array_value
+        self.input_map = self.get_parameter('inputs_front_left_right').get_parameter_value().string_array_value
         self.encoder_signs = self.get_parameter('encoder_signs').get_parameter_value().integer_array_value
 
-        self.get_logger().info(f"pods: {self.pods}")
-        self.get_logger().info(f"encoder_map: {self.encoder_map}, encoder_signs: {self.encoder_signs}")
+        self.get_logger().info(f"pods (Fixed: Front, Left, Right): {self.pods}")
+        self.get_logger().info(f"Mapping: Front='{self.input_map[0]}', Left='{self.input_map[1]}', Right='{self.input_map[2]}'")
+        self.get_logger().info(f"Signs (for a,b,c): {self.encoder_signs}")
 
         # publishers
         self.odom_pub = self.create_publisher(Odometry, 'odom', 10)
@@ -98,11 +143,11 @@ class DeadWheelOdomNode(Node):
         self.yaw = 0.0
         self.prev_time = None
 
-        # computed once from pods: identify lateral pod index and left/right indices
-        self.lateral_idx = None
-        self.left_idx = None
-        self.right_idx = None
-        self._identify_roles_from_pods()
+        # HARDCODED ROLES per user request
+        # 0 is always Front, 1 is always Left, 2 is always Right
+        self.lateral_idx = 0
+        self.left_idx = 1
+        self.right_idx = 2
 
         # after existing publishers
         self.path_pub = self.create_publisher(Path, 'odom_path', 10)
@@ -110,40 +155,6 @@ class DeadWheelOdomNode(Node):
 
         # subscribe to arbiter input
         self.create_subscription(String, 'mcu/in', self._mcu_line_cb, 40)
-
-    def _identify_roles_from_pods(self):
-        lateral = None
-        for i, (_, _, phi) in enumerate(self.pods):
-            p = ((phi + math.pi) % (2*math.pi)) - math.pi
-            if abs(abs(p) - math.pi/2) < 0.6:
-                lateral = i
-                break
-        if lateral is None:
-            maxy = -1.0
-            for i, (_, y, _) in enumerate(self.pods):
-                if abs(y) > maxy:
-                    maxy = abs(y); lateral = i
-
-        others = [i for i in range(len(self.pods)) if i != lateral]
-        if len(others) != 2:
-            self.get_logger().error("Pod count != 3, can't auto-identify roles reliably.")
-            self.lateral_idx = lateral
-            self.left_idx = others[0] if others else 0
-            self.right_idx = others[1] if len(others) > 1 else 1
-            return
-
-        x0 = self.pods[others[0]][0]
-        x1 = self.pods[others[1]][0]
-        if x0 < x1:
-            left, right = others[0], others[1]
-        else:
-            left, right = others[1], others[0]
-
-        self.lateral_idx = lateral
-        self.left_idx = left
-        self.right_idx = right
-
-        self.get_logger().info(f"Identified roles -> lateral_idx={self.lateral_idx}, left_idx={self.left_idx}, right_idx={self.right_idx}")
 
     def _is_tick_jump(self, d_ticks, dt):
         max_rate_ticks_per_sec = 50000.0
@@ -155,8 +166,9 @@ class DeadWheelOdomNode(Node):
             return True
         return False
 
-    def _handle_sample(self, mapped_ticks, sample_time_sec):
-        ticks = np.array(mapped_ticks, dtype=np.int64)
+    def _handle_sample(self, d_front_raw, d_left_raw, d_right_raw, sample_time_sec):
+        # Construct the tick vector [Front, Left, Right]
+        ticks = np.array([d_front_raw, d_left_raw, d_right_raw], dtype=np.int64)
 
         # --- baseline / init ---
         if self.prev_ticks is None:
@@ -171,24 +183,35 @@ class DeadWheelOdomNode(Node):
         if dt <= 0:
             dt = 1e-3
 
+        # Unpack deltas
+        delta_front_ticks = d_ticks[0]
+        delta_left_ticks  = d_ticks[1]
+        delta_right_ticks = d_ticks[2]
+
         # ticks → meters
         circ = 2.0 * math.pi * self.wheel_r
-        d_front = d_ticks[self.lateral_idx] * (circ / self.tpr_front)
-        d_left  = d_ticks[self.left_idx]    * (circ / self.tpr_left)
-        d_right = d_ticks[self.right_idx]   * (circ / self.tpr_right)
+        d_front = delta_front_ticks * (circ / self.tpr_front)
+        d_left  = delta_left_ticks  * (circ / self.tpr_left)
+        d_right = delta_right_ticks * (circ / self.tpr_right)
 
         # --- GM0 math ---
+        # Baseline: Dist between Right X and Left X
         baseline = self.pods[self.right_idx][0] - self.pods[self.left_idx][0]
+        
+        # F: Lateral offset (Y) of the Front wheel
         F = self.pods[self.lateral_idx][1]
 
         # --- compute wheel distances -> body motion ---
         dy_fwd = 0.5 * (d_left + d_right)
         dtheta = (d_right - d_left) / baseline
-        dx_lat = d_front - F * dtheta
+        
+        # Fixed sign for Front/Lateral wheel
+        dx_lat = d_front + F * dtheta
 
         # body frame displacements (robot frame: x forward, y left)
+        # Mapping: Robot Y (Forward) -> ROS X, Robot X (Lateral) -> ROS Y
         body_dx = dy_fwd
-        body_dy = dx_lat
+        body_dy = -dx_lat
 
         # rotate to world using average heading during the step
         avg_heading = self.yaw + dtheta / 2.0
@@ -267,7 +290,7 @@ class DeadWheelOdomNode(Node):
             self.get_logger().warn(f"Bad JSON (ignored): {line}")
             return
 
-        # sample timestamp: prefer MCU provided ms timestamp "time_ms"
+        # sample timestamp
         sample_time_sec = None
         try:
             if 'time_ms' in data:
@@ -282,45 +305,55 @@ class DeadWheelOdomNode(Node):
         # ---------------- IMU publishing ----------------
         try:
             imu_msg = Imu()
-            # put MCU timestamp into IMU header so all sensors share same time base
             sec = int(sample_time_sec)
             nsec = int((sample_time_sec - sec) * 1e9)
             imu_msg.header.stamp.sec = sec
             imu_msg.header.stamp.nanosec = nsec
             imu_msg.header.frame_id = self.frame_base
-
             imu_msg.orientation.x = float(data.get("orientation_x", 0.0))
             imu_msg.orientation.y = float(data.get("orientation_y", 0.0))
             imu_msg.orientation.z = float(data.get("orientation_z", 0.0))
             imu_msg.orientation.w = float(data.get("orientation_w", 1.0))
-
             imu_msg.angular_velocity.x = float(data.get("angular_velocity_x", 0.0))
             imu_msg.angular_velocity.y = float(data.get("angular_velocity_y", 0.0))
             imu_msg.angular_velocity.z = float(data.get("angular_velocity_z", 0.0))
-
             imu_msg.linear_acceleration.x = float(data.get("linear_acceleration_x", 0.0))
             imu_msg.linear_acceleration.y = float(data.get("linear_acceleration_y", 0.0))
             imu_msg.linear_acceleration.z = float(data.get("linear_acceleration_z", 0.0))
-
             self.imu_pub.publish(imu_msg)
         except Exception as e:
             self.get_logger().warn(f"IMU publish error: {e}")
 
-        # expected numeric encoder fields a,b,c
+        # ---------------- HARDCODED MAPPING LOGIC ----------------
         try:
-            raw = [int(data.get('a', 0)), int(data.get('b', 0)), int(data.get('c', 0))]
-        except Exception:
-            self.get_logger().warn(f"Encoder values not ints (ignored): {data}")
+            # 1. Read Raw Values
+            raw_a = int(data.get('a', 0))
+            raw_b = int(data.get('b', 0))
+            raw_c = int(data.get('c', 0))
+            
+            # 2. Apply Signs (Encoder signs apply to a, b, c)
+            val_a = raw_a * self.encoder_signs[0]
+            val_b = raw_b * self.encoder_signs[1]
+            val_c = raw_c * self.encoder_signs[2]
+            
+            # 3. Create a lookup dict
+            values = {'a': val_a, 'b': val_b, 'c': val_c}
+            
+            # 4. Map to roles using the param 'inputs_front_left_right'
+            # Default param is ['a', 'b', 'c']
+            key_front = self.input_map[0]
+            key_left  = self.input_map[1]
+            key_right = self.input_map[2]
+            
+            ticks_front = values.get(key_front, 0)
+            ticks_left  = values.get(key_left, 0)
+            ticks_right = values.get(key_right, 0)
+            
+            self._handle_sample(ticks_front, ticks_left, ticks_right, sample_time_sec)
+            
+        except Exception as e:
+            self.get_logger().warn(f"Encoder mapping error: {e}")
             return
-
-        # map + sign
-        mapped = [0] * len(self.pods)
-        for i_in, val in enumerate(raw):
-            pod_idx = self.encoder_map[i_in] if i_in < len(self.encoder_map) else i_in
-            sign = int(self.encoder_signs[i_in]) if i_in < len(self.encoder_signs) else 1
-            mapped[pod_idx] = int(sign * val)
-
-        self._handle_sample(mapped, sample_time_sec)
 
 
 def main(args=None):

@@ -1,6 +1,6 @@
 from setuptools import find_packages, setup
 
-package_name = 'interpretOdom'
+package_name = 'service_manager'
 
 setup(
     name=package_name,
@@ -10,8 +10,6 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
-                ('share/' + package_name + '/launch', ['launch/odometry.launch.py','launch/rtab_bot.launch.py']),
-
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -26,11 +24,7 @@ setup(
     },
     entry_points={
         'console_scripts': [
-            'tracking_dead_wheel_node = interpretOdom.tracking_dead_wheel_odom:main',
-            'two_tracking_dead_wheel_node = interpretOdom.two_tracking_dead_wheel_odom:main',
-            'test_send_recieve_serial_json = interpretOdom.serial_data_send_recieve_test:main', 
-            'new_pid_controller = interpretOdom.new_pid_controller:main',
-            'serial_arbiter = interpretOdom.serial_arbiter:main',
-            ],
+            'zed_service_node = service_manager.zed_service:main',
+        ],
     },
 )

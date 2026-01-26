@@ -14,6 +14,7 @@ find_package(std_msgs REQUIRED)
 rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/BoundingBox.msg"
   "msg/BoundingBoxes.msg"
+  "srv/SetDepthMode.srv"
   DEPENDENCIES std_msgs
 )
 

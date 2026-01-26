@@ -14,60 +14,47 @@ def generate_launch_description():
     frame_id = LaunchConfiguration('frame_id', default='laser')
     inverted = LaunchConfiguration('inverted', default='true')
     angle_compensate = LaunchConfiguration('angle_compensate', default='true')
+<<<<<<< HEAD
     # Available scan modes: 'Standard', 'Express', 'Boost', 'Sensitivity'
     scan_mode = LaunchConfiguration('scan_mode', default='Standard')
+=======
+    scan_mode = LaunchConfiguration('scan_mode', default='Boost')
+>>>>>>> c08b57bedbf8fe37f296aafaad7a51a286fda3e0
 
-    # RViz config path
     rviz_config_dir = os.path.join(
         get_package_share_directory('sllidar_ros2'),
         'rviz',
         'sllidar_ros2_final.rviz'
     )
 
-    # Paths to additional launch files
-    # nav2_launch_dir = os.path.join(
-    #     get_package_share_directory('nav2_bringup'),
-    #     'launch',
-    #     'navigation_launch.py'
-    # )
     slam_toolbox_launch_file = os.path.join(
         get_package_share_directory('sllidar_ros2'),
         'launch',
         'online_async_launch.py'
     )
 
-
-    # Path to SLAM parameters file
     slam_params_file = os.path.join(
         get_package_share_directory('sllidar_ros2'),
         'config',
         'mapper_params_online_async.yaml'
     )
 
-    # Path to Laser Filters YAML config
     filter_config_file = os.path.join(
         get_package_share_directory('sllidar_ros2'),
         'config',
         'lidar_filter.yaml'
     )
-    
-    ekf_config_file = os.path.join(
-        get_package_share_directory('sllidar_ros2'),  # Replace with your actual package
-        'config',
-        'ekf.yaml'
-    )
 
     return LaunchDescription([
-        # Launch arguments
-        DeclareLaunchArgument('channel_type', default_value=channel_type, description='Specifying channel type of lidar'),
-        DeclareLaunchArgument('serial_port', default_value=serial_port, description='Specifying USB port for lidar'),
-        DeclareLaunchArgument('serial_baudrate', default_value=serial_baudrate, description='Specifying USB port baudrate for lidar'),
-        DeclareLaunchArgument('frame_id', default_value=frame_id, description='Specifying frame_id of lidar'),
-        DeclareLaunchArgument('inverted', default_value=inverted, description='Invert scan data'),
-        DeclareLaunchArgument('angle_compensate', default_value=angle_compensate, description='Enable angle compensation for scan data'),
-        DeclareLaunchArgument('scan_mode', default_value=scan_mode, description='Specifying scan mode of lidar'),
+        DeclareLaunchArgument('channel_type', default_value=channel_type),
+        DeclareLaunchArgument('serial_port', default_value=serial_port),
+        DeclareLaunchArgument('serial_baudrate', default_value=serial_baudrate),
+        DeclareLaunchArgument('frame_id', default_value=frame_id),
+        DeclareLaunchArgument('inverted', default_value=inverted),
+        DeclareLaunchArgument('angle_compensate', default_value=angle_compensate),
+        DeclareLaunchArgument('scan_mode', default_value=scan_mode),
 
-        # LiDAR node (publishes raw data to /scan_raw)
+        # LiDAR node: Publishes raw data to /scan_raw
         Node(
             package='sllidar_ros2',
             executable='sllidar_node',
@@ -82,34 +69,30 @@ def generate_launch_description():
                 'scan_mode': scan_mode,
                 'queue_size': 10
             }],
-            remappings=[('scan', 'scan_raw')],  # Publish full 360° scan as /scan_raw
+            remappings=[('scan', 'scan_raw')],
             output='screen'
         ),
 
-        # Laser Scan Filter Node (filters to 270° and publishes on /scan)
+        # Laser Scan Filter Node: Takes /scan_raw, outputs filtered data to /scan
         Node(
             package='laser_filters',
             executable='scan_to_scan_filter_chain',
             name='scan_to_scan_filter_chain',
             parameters=[filter_config_file],
-            remappings=[('scan', 'scan_raw'), ('scan_filtered', 'scan_raw_filtered')],
+            # CHANGED: 'scan_filtered' is now remapped to 'scan'
+            remappings=[
+                ('scan', 'scan_raw'), 
+                ('scan_filtered', 'scan')
+            ],
             output='screen'
         ),
         
-        # Node(
-        #     package='serial_motor_demo',  # 👉 replace this with your actual package name
-        #     executable='scan_timestamp_fixer',
-        #     name='scan_timestamp_fixer',
-        #     output='screen'
-        # ),
-
         # Static transforms
         Node(
             package='tf2_ros',
             executable='static_transform_publisher',
             name='base_footprint_to_base_link',
             arguments=['0', '0', '0', '0', '0', '0', 'base_footprint', 'base_link']
-
         ),
         Node(
             package='tf2_ros',
@@ -117,8 +100,6 @@ def generate_launch_description():
             name='base_link_to_laser',
             arguments=['0.385', '0', '-0.08', '0', '0', '0', 'base_link', 'laser']
         ),
-        
-
 
         # SLAM Toolbox
         IncludeLaunchDescription(
@@ -138,58 +119,3 @@ def generate_launch_description():
             output='screen'
         ),
     ])
-
-# import os
-# from launch import LaunchDescription
-# from launch.actions import DeclareLaunchArgument
-# from launch_ros.actions import Node
-# from launch.substitutions import LaunchConfiguration
-# from ament_index_python.packages import get_package_share_directory
-
-# def generate_launch_description():
-#     # LiDAR parameters
-#     serial_port = LaunchConfiguration('serial_port', default='/dev/ttyUSB0')
-#     serial_baudrate = LaunchConfiguration('serial_baudrate', default='115200')
-#     frame_id = LaunchConfiguration('frame_id', default='laser')
-#     scan_mode = LaunchConfiguration('scan_mode', default='Standard')
-
-#     # Get path to laser filter config
-#     filter_config_file = os.path.join(
-#         get_package_share_directory('sllidar_ros2'),
-#         'config',
-#         'lidar_filter.yaml'
-#     )
-
-#     return LaunchDescription([
-#         # Launch arguments
-#         DeclareLaunchArgument('serial_port', default_value=serial_port, description='LiDAR USB port'),
-#         DeclareLaunchArgument('serial_baudrate', default_value=serial_baudrate, description='Baudrate'),
-#         DeclareLaunchArgument('frame_id', default_value=frame_id, description='Frame ID'),
-#         DeclareLaunchArgument('scan_mode', default_value=scan_mode, description='Scan Mode'),
-
-#         # LiDAR node (publishes raw /scan_raw)
-#         Node(
-#             package='sllidar_ros2',
-#             executable='sllidar_node',
-#             name='sllidar_node',
-#             parameters=[{
-#                 'serial_port': serial_port,
-#                 'serial_baudrate': serial_baudrate,
-#                 'frame_id': frame_id,
-#                 'scan_mode': scan_mode
-#             }],
-#             remappings=[('scan', 'scan_raw')],
-#             output='screen'
-#         ),
-
-#         # Laser Filters Node (limits scan to 180°)
-#         Node(
-#             package='laser_filters',
-#             executable='scan_to_scan_filter_chain',
-#             name='scan_to_scan_filter_chain',
-#             parameters=[filter_config_file],
-#             remappings=[('scan', 'scan_raw'), ('scan_filtered', 'scan')],
-#             output='screen'
-#         )
-#     ])
-    

@@ -9,6 +9,7 @@ from ament_index_python.packages import get_package_share_directory
 
 
 def generate_launch_description():
+<<<<<<< HEAD
     """Launch multiple nodes that correspond to the requested ros2 run/launch commands.
 
     Starts:
@@ -67,8 +68,11 @@ def generate_launch_description():
         output='screen',
     )
 
+=======
+    # Node to run: ros2 run interpret_odom tracking_dead_wheel_node
+>>>>>>> c08b57bedbf8fe37f296aafaad7a51a286fda3e0
     tracking_node = Node(
-        package='interpretOdom',
+        package='interpret_odom',
         executable='tracking_dead_wheel_node',
         name='tracking_dead_wheel_node',
         output='screen',
