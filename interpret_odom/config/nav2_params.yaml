@@ -210,7 +210,7 @@ controller_server:
 map_server:
   ros__parameters:
     use_sim_time: false
-    yaml_filename: ""
+    yaml_filename: "/home/yash/rcup_maps/mymap.yaml"
 
 map_saver:
   ros__parameters:
@@ -270,69 +270,71 @@ waypoint_follower:
 
 
 local_costmap:
-  ros__parameters:
-    update_frequency: 5.0
-    publish_frequency: 2.0
-    global_frame: odom
-    robot_base_frame: base_link
-    use_sim_time: false
-    rolling_window: true
-    width: 3
-    height: 3
-    resolution: 0.05
-    # FIXED: Matched Global Costmap dimensions [0.4] instead of [0.35]
-    footprint: "[ [0.4, 0.4], [0.4, -0.4], [-0.4, -0.4], [-0.4, 0.4] ]" 
-    
-    # FIXED: Switched voxel_layer -> obstacle_layer for 2D efficiency
-    plugins: ["obstacle_layer", "inflation_layer"]
-    
-    obstacle_layer:
-      plugin: "nav2_costmap_2d::ObstacleLayer"
-      enabled: true
-      observation_sources: scan
-      scan:
-        topic: /scan
-        max_obstacle_height: 2.0
-        clearing: true
-        marking: true
-        data_type: "LaserScan"
-        raytrace_max_range: 3.0
-        obstacle_max_range: 2.5
-        
-    inflation_layer:
-      plugin: "nav2_costmap_2d::InflationLayer"
-      cost_scaling_factor: 3.0
-      inflation_radius: 0.55
-    always_send_full_costmap: true
+  local_costmap:
+    ros__parameters:
+      update_frequency: 5.0
+      publish_frequency: 2.0
+      global_frame: odom
+      robot_base_frame: base_link
+      use_sim_time: false
+      rolling_window: true
+      width: 3
+      height: 3
+      resolution: 0.05
+      # FIXED: Matched Global Costmap dimensions [0.4] instead of [0.35]
+      footprint: "[ [0.4, 0.4], [0.4, -0.4], [-0.4, -0.4], [-0.4, 0.4] ]" 
       
+      # FIXED: Switched voxel_layer -> obstacle_layer for 2D efficiency
+      plugins: ["obstacle_layer", "inflation_layer"]
+      
+      obstacle_layer:
+        plugin: "nav2_costmap_2d::ObstacleLayer"
+        enabled: true
+        observation_sources: scan
+        scan:
+          topic: /scan
+          max_obstacle_height: 2.0
+          clearing: true
+          marking: true
+          data_type: "LaserScan"
+          raytrace_max_range: 3.0
+          obstacle_max_range: 2.5
+          
+      inflation_layer:
+        plugin: "nav2_costmap_2d::InflationLayer"
+        cost_scaling_factor: 3.0
+        inflation_radius: 0.55
+      always_send_full_costmap: true
+          
 global_costmap:
-  ros__parameters:
-    update_frequency: 1.0
-    publish_frequency: 1.0
-    global_frame: map
-    robot_base_frame: base_link
-    use_sim_time: false
-    footprint: "[ [0.4, 0.4], [0.4, -0.4], [-0.4, -0.4], [-0.4, 0.4] ]"      
-    resolution: 0.05
-    track_unknown_space: true
-    plugins: ["static_layer", "obstacle_layer", "inflation_layer"]
-    obstacle_layer:
-      plugin: "nav2_costmap_2d::ObstacleLayer"
-      enabled: true
-      observation_sources: scan
-      scan:
-        topic: /scan
-        max_obstacle_height: 2.0
-        clearing: true
-        marking: true
-        data_type: "LaserScan"
-        raytrace_max_range: 3.0
-        obstacle_max_range: 2.5
-    static_layer:
-      plugin: "nav2_costmap_2d::StaticLayer"
-      map_subscribe_transient_local: true
-    inflation_layer:
-      plugin: "nav2_costmap_2d::InflationLayer"
-      cost_scaling_factor: 3.0
-      inflation_radius: 0.55
-    always_send_full_costmap: true
+  global_costmap:
+    ros__parameters:
+      update_frequency: 1.0
+      publish_frequency: 1.0
+      global_frame: map
+      robot_base_frame: base_link
+      use_sim_time: false
+      footprint: "[ [0.4, 0.4], [0.4, -0.4], [-0.4, -0.4], [-0.4, 0.4] ]"      
+      resolution: 0.05
+      track_unknown_space: true
+      plugins: ["static_layer", "obstacle_layer", "inflation_layer"]
+      obstacle_layer:
+        plugin: "nav2_costmap_2d::ObstacleLayer"
+        enabled: true
+        observation_sources: scan
+        scan:
+          topic: /scan
+          max_obstacle_height: 2.0
+          clearing: true
+          marking: true
+          data_type: "LaserScan"
+          raytrace_max_range: 3.0
+          obstacle_max_range: 2.5
+      static_layer:
+        plugin: "nav2_costmap_2d::StaticLayer"
+        map_subscribe_transient_local: true
+      inflation_layer:
+        plugin: "nav2_costmap_2d::InflationLayer"
+        cost_scaling_factor: 3.0
+        inflation_radius: 0.55
+      always_send_full_costmap: true

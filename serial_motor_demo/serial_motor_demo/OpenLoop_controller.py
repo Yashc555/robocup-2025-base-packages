@@ -14,7 +14,7 @@ class CmdvelToMcu(Node):
         self.declare_parameter('wheel_L', 0.305)
         self.declare_parameter('wheel_W', 0.2175)
         # pwm limits and scaling
-        self.declare_parameter('max_pwm', 35)
+        self.declare_parameter('max_pwm', 20)
         self.declare_parameter('scale_factor', 100.0)   # multiplies wheel speed (m/s) -> pwm units
         # idle timeout (seconds) after which we send zeros
         self.declare_parameter('idle_timeout', 0.05)
