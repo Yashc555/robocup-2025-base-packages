@@ -40,6 +40,8 @@ class CmdvelToMcu(Node):
         # timer to check idle and publish zero if needed
         self.create_timer(0.1, self._idle_check)
 
+        self.pwm_change_rate = 2
+
         self.get_logger().info(f"cmdvel_to_mcu listening on '{cmd_topic}', publishing to '{mcu_out_topic}'")
 
     def cb_cmdvel(self, msg: Twist):
@@ -66,6 +68,16 @@ class CmdvelToMcu(Node):
                 pwm = -self.max_pwm
             pwm_values.append(pwm)
 
+
+        #increase step by step
+        self.last_pwm_values = getattr(self, 'last_pwm_values', [0, 0, 0, 0])
+        for i in range(4):
+            if pwm_values[i] > self.last_pwm_values[i]:
+                pwm_values[i] = min(pwm_values[i], self.last_pwm_values[i] + self.pwm_change_rate)
+            elif pwm_values[i] < self.last_pwm_values[i]:
+                pwm_values[i] = max(pwm_values[i], self.last_pwm_values[i] - self.pwm_change_rate)
+
+        self.last_pwm_values = pwm_values.copy()
         # map to MCU order and sign as before (keep existing mapping)
         pwm_message = {
             "pwm1": -pwm_values[0],
@@ -94,6 +106,7 @@ class CmdvelToMcu(Node):
             self.pub_mcu_out.publish(out)
             self.get_logger().info("Idle timeout reached: sent stop PWM to MCU")
             self.last_cmd_time = None
+            self.last_pwm_values = [0, 0, 0, 0] 
 
 def main(args=None):
     rclpy.init(args=args)
