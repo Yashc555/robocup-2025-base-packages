@@ -117,6 +117,7 @@ class CmdvelToMcu(Node):
             out.data = json.dumps(stop_msg)
             self.pub_mcu_out.publish(out)
             self.last_cmd_time = None
+            self.last_pwm_values = [0, 0, 0, 0] 
 
 def main(args=None):
     rclpy.init(args=args)

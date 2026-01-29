@@ -25,6 +25,8 @@ setup(
     entry_points={
         'console_scripts': [
             'tape_scan_node = barrier_tape_addition.tape_scan_node:main',
+            'publish_map = barrier_tape_addition.publish_map:main',
+            'publish_box_coordinate = barrier_tape_addition.publish_box_coordinate:main',
         ],
     },
 )
