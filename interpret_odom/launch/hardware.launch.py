@@ -16,7 +16,7 @@ def generate_launch_description():
     serial_port = LaunchConfiguration('serial_port', default='/dev/lidar')
     serial_baudrate = LaunchConfiguration('serial_baudrate', default='115200')
     frame_id = LaunchConfiguration('frame_id', default='laser')
-    inverted = LaunchConfiguration('inverted', default='true')
+    inverted = LaunchConfiguration('inverted', default='false')
     angle_compensate = LaunchConfiguration('angle_compensate', default='true')
     scan_mode = LaunchConfiguration('scan_mode', default='Boost')
 
@@ -30,7 +30,7 @@ def generate_launch_description():
     
     tf_laser = Node(
         package='tf2_ros', executable='static_transform_publisher',
-        arguments=['--x', '0.385', '--y', '0', '--z', '-0.08', '--yaw', '0', '--pitch', '0', '--roll', '0', 
+        arguments=['--x', '0.385', '--y', '0', '--z', '0.08', '--yaw', '0', '--pitch', '0', '--roll', '0', 
                    '--frame-id', 'base_link', '--child-frame-id', 'laser']
     )
 

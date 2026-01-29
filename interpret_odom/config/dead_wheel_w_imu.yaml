@@ -16,7 +16,7 @@ ekf_filter_node:
                    false, false, false,   # roll, pitch, yaw  <-- yaw disabled
                    true,  true,  false,   # vx, vy, vz
                    false, false, false,   # vroll, vpitch, vyaw
-                   true, true, false]   # ax, ay, az
+                   false, false, false]   # ax, ay, az
     odom0_differential: false
     odom0_relative: true
 
@@ -30,6 +30,3 @@ ekf_filter_node:
     imu0_differential: false
     imu0_relative: true
     imu0_use_mag: false
-
-    # (optional) tune process noise if you want; default is OK for first pass
-    # process_noise_covariance: [ ... ]   # keep default unless you know what you're changing
