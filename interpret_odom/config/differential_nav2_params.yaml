@@ -112,8 +112,8 @@ controller_server:
     general_goal_checker:
       stateful: true
       plugin: "nav2_controller::SimpleGoalChecker"
-      xy_goal_tolerance: 0.25
-      yaw_goal_tolerance: 0.2
+      xy_goal_tolerance: 0.05
+      yaw_goal_tolerance: 0.05
 
     FollowPath:
       plugin: "nav2_mppi_controller::MPPIController"
@@ -199,7 +199,7 @@ controller_server:
         max_path_occupancy_ratio: 0.05
         trajectory_point_step: 4
         threshold_to_consider: 0.5
-        offset_from_furthest: 20
+        offset_from_furthest: 30
         use_path_orientations: true # CHANGED: Often helpful for DiffDrive
       
       PathFollowCritic:
@@ -314,7 +314,7 @@ local_costmap:
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 3.0
-        inflation_radius: 0.55
+        inflation_radius: 0.3
       always_send_full_costmap: true
           
 global_costmap:
@@ -347,5 +347,5 @@ global_costmap:
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 3.0
-        inflation_radius: 0.55
+        inflation_radius: 0.3
       always_send_full_costmap: true

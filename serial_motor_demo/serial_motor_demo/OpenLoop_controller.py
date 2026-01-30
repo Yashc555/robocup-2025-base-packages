@@ -15,7 +15,7 @@ class CmdvelToMcu(Node):
         self.declare_parameter('wheel_W', 0.2175)
         
         # pwm limits and scaling
-        self.declare_parameter('max_pwm', 25)
+        self.declare_parameter('max_pwm', 26)
         self.declare_parameter('scale_factor', 100.0)
         
         # RAMPING PARAMETER (Max PWM change per callback)
@@ -55,7 +55,7 @@ class CmdvelToMcu(Node):
     def cb_cmdvel(self, msg: Twist):
         vx = float(msg.linear.x)
         vy = float(msg.linear.y) * self.strafe_gain
-        wz = float(msg.angular.z)
+        wz = -float(msg.angular.z)
 
         # Dynamic Limit Logic
         current_limit = self.max_pwm
