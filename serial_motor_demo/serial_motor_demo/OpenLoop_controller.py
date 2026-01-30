@@ -15,7 +15,7 @@ class CmdvelToMcu(Node):
         self.declare_parameter('wheel_W', 0.2175)
         
         # pwm limits and scaling
-        self.declare_parameter('max_pwm', 25)
+        self.declare_parameter('max_pwm', 35)
         self.declare_parameter('scale_factor', 100.0)
         
         # RAMPING PARAMETER (Max PWM change per callback)
