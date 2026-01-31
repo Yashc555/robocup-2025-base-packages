@@ -18,7 +18,7 @@ def generate_launch_description():
     )
     
     map_file_arg = DeclareLaunchArgument(
-        'map_file', default_value='/home/yash/rcup_maps/myserialmap',
+        'map_file', default_value='/home/sanjay/rcup_maps/myserialmap',
         description='Path to serialized map file (no extension) for localization'
     )
 
