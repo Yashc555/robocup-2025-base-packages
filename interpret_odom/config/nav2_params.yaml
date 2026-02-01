@@ -1,3 +1,5 @@
+#refer to the nav2 params docs : https://docs.nav2.org/configuration/index.html
+
 
 bt_navigator:
   ros__parameters:
@@ -67,7 +69,7 @@ controller_server:
     
     general_goal_checker:
       stateful: true
-      plugin: "nav2_controller::SimpleGoalChecker"
+      plugin: "nav2_controller::StoppedGoalChecker"
       xy_goal_tolerance: 0.10
       yaw_goal_tolerance: 0.10
 
@@ -162,7 +164,7 @@ controller_server:
       TwirlingCritic:
         enabled: true        # CRITICAL for Mecanum
         cost_power: 1
-        cost_weight: 10.0
+        cost_weight: 15.0
       
       PathFollowCritic:
         enabled: true
@@ -232,7 +234,7 @@ velocity_smoother:
     max_velocity: [0.15, 0.15, 0.15]    # [x_max, y_max, theta_max]
     min_velocity: [-0.15, -0.15, -0.15] # [x_min, y_min, theta_min]
     max_accel: [0.1, 0.1, 0.1]       # [x_accel, y_accel, theta_accel]
-    max_decel: [-0.1, -0.1, -0.1]       # Must be positive!
+    max_decel: [-0.1, -0.1, -0.1]       
     odom_topic: "odom"
     robot_base_frame: "base_link"
 
@@ -276,8 +278,8 @@ local_costmap:
 global_costmap:
   global_costmap:
     ros__parameters:
-      update_frequency: 1.0
-      publish_frequency: 1.0
+      update_frequency: 7.0
+      publish_frequency: 7.0
       global_frame: map
       robot_base_frame: base_link
       use_sim_time: false
