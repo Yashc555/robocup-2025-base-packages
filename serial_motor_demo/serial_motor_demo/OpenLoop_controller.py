@@ -15,20 +15,20 @@ class CmdvelToMcu(Node):
         self.declare_parameter('wheel_W', 0.2175)
         
         # pwm limits and scaling
-        self.declare_parameter('max_pwm', 35)
+        self.declare_parameter('max_pwm', 30)
         self.declare_parameter('scale_factor', 100.0)
         
         # --- NEW: Dual Thresholds ---
         # Threshold for standard movement (forward/turn)
         self.declare_parameter('min_pwm_threshold_normal', 20)
         # Threshold specifically for strafing (sideways)
-        self.declare_parameter('min_pwm_threshold_strafe', 25)
+        self.declare_parameter('min_pwm_threshold_strafe', 20)
         
         # RAMPING PARAMETER
         self.declare_parameter('ramp_step', 4) 
 
         # STRAFING GAIN
-        self.declare_parameter('strafe_gain', 1.2) 
+        self.declare_parameter('strafe_gain',1.2) 
 
         self.declare_parameter('idle_timeout', 0.05)
         self.declare_parameter('cmd_vel_in_topic', 'cmd_vel_out')
