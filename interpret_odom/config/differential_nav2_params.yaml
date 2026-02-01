@@ -1,46 +1,46 @@
-# amcl:
-#   ros__parameters:
-#     use_sim_time: false
-#     alpha1: 0.05   # Rotational error from rotation (The most important for your issue!)
-#     alpha2: 0.05   # Rotational error from translation
-#     alpha3: 0.05   # Translational error from translation
-#     alpha4: 0.05   # Translational error from rotation
-#     alpha5: 0.0    # Not used in DifferentialMotionModel
-#     base_frame_id: "base_link"
-#     beam_skip_distance: 0.5
-#     beam_skip_error_threshold: 0.9
-#     beam_skip_threshold: 0.3
-#     do_beamskip: false
-#     global_frame_id: "map"
-#     lambda_short: 0.1
-#     laser_likelihood_max_dist: 0.5
-#     laser_max_range: 8.0
-#     laser_min_range: -1.0
-#     laser_max_beams: 60
-#     laser_model_type: "likelihood_field"
-#     max_beams: 60
-#     max_particles: 3000
-#     min_particles: 500
-#     odom_frame_id: "odom"
-#     pf_err: 0.05
-#     pf_z: 0.99
-#     recovery_alpha_fast: 0.0
-#     recovery_alpha_slow: 0.0
-#     resample_interval: 1
-#     # CHANGED: From OmniMotionModel to DifferentialMotionModel
-#     robot_model_type: "nav2_amcl::DifferentialMotionModel" 
-#     save_pose_rate: 0.5
-#     sigma_hit: 0.2
-#     tf_broadcast: true
-#     transform_tolerance: 0.15
-#     update_min_a: 0.5         # Don't update until rotated 30 deg
-#     update_min_d: 0.4         # Don't update until moved 40 cm
-#     z_hit: 0.9     # Trust the laser hits 90% of the time
-#     z_rand: 0.05   # Only 5% is random noise
-#     z_max: 0.05
-#     z_short: 0.05
-#     scan_topic: scan
-#     map_topic: map
+amcl:
+  ros__parameters:
+    use_sim_time: false
+    alpha1: 0.05   # Rotational error from rotation (The most important for your issue!)
+    alpha2: 0.05   # Rotational error from translation
+    alpha3: 0.05   # Translational error from translation
+    alpha4: 0.05   # Translational error from rotation
+    alpha5: 0.0    # Not used in DifferentialMotionModel
+    base_frame_id: "base_link"
+    beam_skip_distance: 0.5
+    beam_skip_error_threshold: 0.9
+    beam_skip_threshold: 0.3
+    do_beamskip: false
+    global_frame_id: "map"
+    lambda_short: 0.1
+    laser_likelihood_max_dist: 0.5
+    laser_max_range: 8.0
+    laser_min_range: -1.0
+    laser_max_beams: 60
+    laser_model_type: "likelihood_field"
+    max_beams: 60
+    max_particles: 3000
+    min_particles: 500
+    odom_frame_id: "odom"
+    pf_err: 0.05
+    pf_z: 0.99
+    recovery_alpha_fast: 0.0
+    recovery_alpha_slow: 0.0
+    resample_interval: 1
+    # CHANGED: From OmniMotionModel to DifferentialMotionModel
+    robot_model_type: "nav2_amcl::DifferentialMotionModel" 
+    save_pose_rate: 0.5
+    sigma_hit: 0.2
+    tf_broadcast: true
+    transform_tolerance: 1.0
+    update_min_a: 0.1
+    update_min_d: 0.1
+    z_hit: 0.9     # Trust the laser hits 90% of the time
+    z_rand: 0.05   # Only 5% is random noise
+    z_max: 0.05
+    z_short: 0.05
+    scan_topic: scan
+    map_topic: map
 
 
 bt_navigator:
@@ -84,7 +84,7 @@ bt_navigator:
       - nav2_speed_controller_bt_node
       - nav2_recovery_node_bt_node
       - nav2_pipeline_sequence_bt_node
-      - nav2_round_robin_node_bt_node
+      - nav2_round_robin_node_btdif_node
       - nav2_transform_available_condition_bt_node
       - nav2_time_expired_condition_bt_node
       - nav2_distance_traveled_condition_bt_node
@@ -95,7 +95,7 @@ bt_navigator:
 controller_server:
   ros__parameters:
     use_sim_time: false
-    controller_frequency: 30.0
+    controller_frequency: 20.0
     min_x_velocity_threshold: 0.001
     min_y_velocity_threshold: 0.0   # CHANGED: Zero for diff drive
     min_theta_velocity_threshold: 0.001
@@ -112,8 +112,8 @@ controller_server:
     general_goal_checker:
       stateful: true
       plugin: "nav2_controller::SimpleGoalChecker"
-      xy_goal_tolerance: 0.05
-      yaw_goal_tolerance: 0.1
+      xy_goal_tolerance: 0.20
+      yaw_goal_tolerance: 0.15
 
     FollowPath:
       plugin: "nav2_mppi_controller::MPPIController"
@@ -125,20 +125,20 @@ controller_server:
       vx_std: 0.2
       vy_std: 0.0       # CHANGED: Zero noise for Y
       wz_std: 0.4
-      vx_max: 0.2
-      vx_min: -0.15
+      vx_max: 0.3
+      vx_min: -0.35
       vy_max: 0.0       # CHANGED: No lateral movement allowed
       vy_min: 0.0       # CHANGED: No lateral movement allowed
-      wz_max: 0.25
+      wz_max: 1.0
       
       # --- DYNAMICS ---
-      ax_max: 0.35       # CHANGED: Reduced from 3.0 to 2.0
-      ax_min: -0.35
+      ax_max: 2.0       # CHANGED: Reduced from 3.0 to 2.0
+      ax_min: -3.0
       ay_min: 0.0       # CHANGED: Zero Y acceleration
       ay_max: 0.0       # CHANGED: Zero Y acceleration
-      az_max: 0.5
+      az_max: 3.5
       
-      iteration_count: 2
+      iteration_count: 1
       temperature: 0.3
       gamma: 0.015
       motion_model: "DiffDrive"   # CHANGED: Omni -> DiffDrive
@@ -179,7 +179,7 @@ controller_server:
       PreferForwardCritic:
         enabled: true     # CHANGED: Enable to prefer forward motion over weird backing up
         cost_power: 1
-        cost_weight: 10.0  # Increased weight slightly for stability
+        cost_weight: 5.0  # Increased weight slightly for stability
         threshold_to_consider: 0.5
       
       CostCritic:
@@ -195,11 +195,11 @@ controller_server:
       PathAlignCritic:
         enabled: true
         cost_power: 1
-        cost_weight: 8.0
+        cost_weight: 4.0
         max_path_occupancy_ratio: 0.05
         trajectory_point_step: 4
         threshold_to_consider: 0.5
-        offset_from_furthest: 30
+        offset_from_furthest: 20
         use_path_orientations: true # CHANGED: Often helpful for DiffDrive
       
       PathFollowCritic:
@@ -212,24 +212,24 @@ controller_server:
       PathAngleCritic:
         enabled: true     # CHANGED: MUST BE TRUE. Forces robot to turn toward path before driving.
         cost_power: 1
-        cost_weight: 1.0
+        cost_weight: 2.0
         threshold_to_consider: 0.5
         max_angle_to_furthest: 0.785
         mode: 0           # 0: Forward preference, 1: No preference
         
   
-# map_server:
-#   ros__parameters:
-#     use_sim_time: false
-#     yaml_filename: "/home/yash/rcup_maps/mymap.yaml"
+map_server:
+  ros__parameters:
+    use_sim_time: false
+    yaml_filename: "/home/sanjay/rcup_maps/mymap.yaml"
 
-# map_saver:
-#   ros__parameters:
-#     use_sim_time: false
-#     save_map_timeout: 5.0
-#     free_thresh_default: 0.25
-#     occupied_thresh_default: 0.65
-#     map_subscribe_transient_local: true
+map_saver:
+  ros__parameters:
+    use_sim_time: false
+    save_map_timeout: 5.0
+    free_thresh_default: 0.25
+    occupied_thresh_default: 0.65
+    map_subscribe_transient_local: true
 
 planner_server:
   ros__parameters:
@@ -314,7 +314,7 @@ local_costmap:
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 3.0
-        inflation_radius: 0.3
+        inflation_radius: 0.55
       always_send_full_costmap: true
           
 global_costmap:
@@ -347,5 +347,5 @@ global_costmap:
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 3.0
-        inflation_radius: 0.3
+        inflation_radius: 0.55
       always_send_full_costmap: true
