@@ -15,18 +15,20 @@ class CmdvelToMcu(Node):
         self.declare_parameter('wheel_W', 0.2175)
         
         # pwm limits and scaling
-        self.declare_parameter('max_pwm', 30)
+        self.declare_parameter('max_pwm', 35)
         self.declare_parameter('scale_factor', 100.0)
         
-        # NEW: Threshold parameter (e.g., 15)
-        # Any magnitude < 15 and > 0 will be boosted to 16
-        self.declare_parameter('min_pwm_threshold', 15)
+        # --- NEW: Dual Thresholds ---
+        # Threshold for standard movement (forward/turn)
+        self.declare_parameter('min_pwm_threshold_normal', 20)
+        # Threshold specifically for strafing (sideways)
+        self.declare_parameter('min_pwm_threshold_strafe', 25)
         
         # RAMPING PARAMETER
         self.declare_parameter('ramp_step', 4) 
 
         # STRAFING GAIN
-        self.declare_parameter('strafe_gain', 1.5) 
+        self.declare_parameter('strafe_gain', 1.2) 
 
         self.declare_parameter('idle_timeout', 0.05)
         self.declare_parameter('cmd_vel_in_topic', 'cmd_vel_out')
@@ -39,7 +41,10 @@ class CmdvelToMcu(Node):
         self.strafe_gain = float(self.get_parameter('strafe_gain').get_parameter_value().double_value)
         self.idle_timeout = float(self.get_parameter('idle_timeout').get_parameter_value().double_value)
         self.ramp_step = int(self.get_parameter('ramp_step').get_parameter_value().integer_value)
-        self.min_threshold = int(self.get_parameter('min_pwm_threshold').get_parameter_value().integer_value)
+        
+        # Retrieve separate thresholds
+        self.min_normal = int(self.get_parameter('min_pwm_threshold_normal').get_parameter_value().integer_value)
+        self.min_strafe = int(self.get_parameter('min_pwm_threshold_strafe').get_parameter_value().integer_value)
         
         cmd_topic = self.get_parameter('cmd_vel_in_topic').get_parameter_value().string_value
         mcu_out_topic = self.get_parameter('mcu_out_topic').get_parameter_value().string_value
@@ -51,16 +56,22 @@ class CmdvelToMcu(Node):
         self.current_pwms = [0, 0, 0, 0] 
 
         self.create_timer(0.1, self._idle_check)
-        self.get_logger().info(f"Active. Max: {self.max_pwm}, Min Threshold: {self.min_threshold}")
+        self.get_logger().info(f"Active. Normal Min: {self.min_normal}, Strafe Min: {self.min_strafe}")
 
     def cb_cmdvel(self, msg: Twist):
         vx = float(msg.linear.x)
         vy = float(msg.linear.y) * self.strafe_gain
         wz = -float(msg.angular.z)
 
-        current_limit = self.max_pwm
-        if abs(vy) > 0.01: 
+        # Detect Strafing and select Threshold/Limits
+        is_strafing = abs(vy) > 0.01
+        
+        if is_strafing:
             current_limit = int(self.max_pwm * self.strafe_gain)
+            active_min_threshold = self.min_strafe
+        else:
+            current_limit = self.max_pwm
+            active_min_threshold = self.min_normal
 
         geom = self.L + self.W
         
@@ -87,19 +98,17 @@ class CmdvelToMcu(Node):
             else:
                 self.current_pwms[i] = target_pwm
 
-        # 4. Final Output Processing: Threshold/Deadband logic
-        # Apply the logic to the values right before they are sent to the MCU
+        # 4. Final Output Processing: Dynamic Threshold Logic
         final_pwms = []
         for val in self.current_pwms:
             abs_val = abs(val)
-            if 0 < abs_val <= self.min_threshold:
-                # Set magnitude to threshold + 1 while preserving sign
-                new_val = self.min_threshold + 1
+            # Use the active_min_threshold determined by is_strafing
+            if 0 < abs_val <= active_min_threshold:
+                new_val = active_min_threshold + 1
                 final_pwms.append(new_val if val > 0 else -new_val)
             else:
                 final_pwms.append(val)
 
-        # Construct message using final_pwms
         pwm_message = {
             "pwm1": -final_pwms[1],
             "pwm2": final_pwms[2],
