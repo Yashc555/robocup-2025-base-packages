@@ -14,12 +14,7 @@ def generate_launch_description():
     frame_id = LaunchConfiguration('frame_id', default='laser')
     inverted = LaunchConfiguration('inverted', default='true')
     angle_compensate = LaunchConfiguration('angle_compensate', default='true')
-<<<<<<< HEAD
-    # Available scan modes: 'Standard', 'Express', 'Boost', 'Sensitivity'
-    scan_mode = LaunchConfiguration('scan_mode', default='Standard')
-=======
     scan_mode = LaunchConfiguration('scan_mode', default='Boost')
->>>>>>> c08b57bedbf8fe37f296aafaad7a51a286fda3e0
 
     rviz_config_dir = os.path.join(
         get_package_share_directory('sllidar_ros2'),
