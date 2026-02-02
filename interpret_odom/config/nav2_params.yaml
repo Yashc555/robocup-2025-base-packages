@@ -52,6 +52,9 @@ controller_server:
   ros__parameters:
     use_sim_time: false
     controller_frequency: 20.0
+    remappings:
+      - /cmd_vel
+      - /cmd_vel_nav
     min_x_velocity_threshold: 0.01
     min_y_velocity_threshold: 0.01
     min_theta_velocity_threshold: 0.01
@@ -297,3 +300,35 @@ global_costmap:
         cost_scaling_factor: 3.0
         inflation_radius: 0.4
       always_send_full_costmap: true
+
+collision_monitor:
+  ros__parameters:
+    enabled: True
+    base_frame_id: "base_flink"
+    odom_frame_id: "odom"
+    cmd_vel_in_topic: "cmd_vel_out"
+    cmd_vel_out_topic: "cmd_vel_out_mcu"
+    transform_tolerance: 0.5
+    source_timeout: 5.0
+    stop_pub_timeout: 2.0
+    enable_stamped_cmd_vel: True # False for Jazzy or older by default
+    polygons: ["PolygonStop", "PolygonSlow"]
+    PolygonStop:
+      type: "polygon"
+      points: "[[0.4, 0.3], [0.4, -0.3], [0.0, -0.3], [0.0, 0.3]]"
+      action_type: "stop"
+      min_points: 3  # max_points: 3 for Humble
+      visualize: True
+      polygon_pub_topic: "polygon_stop"
+    PolygonSlow:
+      type: "polygon"
+      points: "[[0.6, 0.4], [0.6, -0.4], [0.0, -0.4], [0.0, 0.4]]"
+      action_type: "slowdown"
+      min_points: 3  # max_points: 3 for Humble
+      slowdown_ratio: 0.3
+      visualize: True
+      polygon_pub_topic: "polygon_slowdown"
+    observation_sources: ["scan"]
+    scan:
+      type: "scan"
+      topic: "scan"

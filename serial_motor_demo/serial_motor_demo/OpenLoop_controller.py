@@ -15,20 +15,20 @@ class CmdvelToMcu(Node):
         self.declare_parameter('wheel_W', 0.2175)
         
         # pwm limits and scaling
-        self.declare_parameter('max_pwm', 30)
+        self.declare_parameter('max_pwm', 18)
         self.declare_parameter('scale_factor', 100.0)
         
         # --- NEW: Dual Thresholds ---
         # Threshold for standard movement (forward/turn)
-        self.declare_parameter('min_pwm_threshold_normal', 20)
+        self.declare_parameter('min_pwm_threshold_normal', 15)
         # Threshold specifically for strafing (sideways)
-        self.declare_parameter('min_pwm_threshold_strafe', 25)
+        self.declare_parameter('min_pwm_threshold_strafe', 28)
         
         # RAMPING PARAMETER
         self.declare_parameter('ramp_step', 4) 
 
         # STRAFING GAIN
-        self.declare_parameter('strafe_gain',1.2) 
+        self.declare_parameter('strafe_gain',1.9) 
 
         self.declare_parameter('idle_timeout', 0.05)
         self.declare_parameter('cmd_vel_in_topic', 'cmd_vel_out')
@@ -56,7 +56,7 @@ class CmdvelToMcu(Node):
         self.current_pwms = [0, 0, 0, 0] 
 
         self.create_timer(0.1, self._idle_check)
-        self.get_logger().info(f"Active. Normal Min: {self.min_normal}, Strafe Min: {self.min_strafe}")
+        self.get_logger().info(f"Active. MAX_PWM : {self.max_pwm} STrafe Gain : {self.strafe_gain} Normal Min: {self.min_normal}, Strafe Min: {self.min_strafe}")
 
     def cb_cmdvel(self, msg: Twist):
         vx = float(msg.linear.x)
