@@ -10,33 +10,35 @@ class CmdvelToMcu(Node):
     def __init__(self):
         super().__init__('cmdvel_to_mcu')
 
+        # --- Parameters ---
         self.declare_parameter('wheel_L', 0.305)
         self.declare_parameter('wheel_W', 0.2175)
-        
-        self.declare_parameter('max_pwm', 20)
+        self.declare_parameter('max_pwm', 22)
         self.declare_parameter('scale_factor', 100.0)
-        
-        self.declare_parameter('min_pwm_threshold_normal', 16)
+        self.declare_parameter('min_pwm_threshold_normal', 18)
         self.declare_parameter('min_pwm_threshold_strafe', 28)
-        
         self.declare_parameter('ramp_step', 12) 
         self.declare_parameter('strafe_gain', 1.9) 
-
         self.declare_parameter('idle_timeout', 0.05)
         self.declare_parameter('cmd_vel_in_topic', 'cmd_vel_out')
         self.declare_parameter('mcu_out_topic', 'mcu/out')
+        
+        self.declare_parameter('brake_duration', 0.25) # Seconds to apply reverse force
+        self.declare_parameter('brake_pwm', 20)        # PWM strength for braking
 
+        # Load Params
         self.L = float(self.get_parameter('wheel_L').get_parameter_value().double_value)
         self.W = float(self.get_parameter('wheel_W').get_parameter_value().double_value)
         self.max_pwm = int(self.get_parameter('max_pwm').get_parameter_value().integer_value)
-        self.scale_factor = float(self.get_parameter('scale_factor').get_parameter_value().double_value)
         self.strafe_gain = float(self.get_parameter('strafe_gain').get_parameter_value().double_value)
         self.idle_timeout = float(self.get_parameter('idle_timeout').get_parameter_value().double_value)
-        self.ramp_step = int(self.get_parameter('ramp_step').get_parameter_value().integer_value)
         
         self.min_normal = int(self.get_parameter('min_pwm_threshold_normal').get_parameter_value().integer_value)
         self.min_strafe = int(self.get_parameter('min_pwm_threshold_strafe').get_parameter_value().integer_value)
         
+        self.brake_duration = float(self.get_parameter('brake_duration').get_parameter_value().double_value)
+        self.brake_pwm = int(self.get_parameter('brake_pwm').get_parameter_value().integer_value)
+
         cmd_topic = self.get_parameter('cmd_vel_in_topic').get_parameter_value().string_value
         mcu_out_topic = self.get_parameter('mcu_out_topic').get_parameter_value().string_value
 
@@ -45,42 +47,43 @@ class CmdvelToMcu(Node):
 
         self.last_cmd_time = None
         self.current_pwms = [0, 0, 0, 0] 
+        self.last_moving_pwms = [0, 0, 0, 0] # Store direction for braking
 
-        self.create_timer(0.1, self._idle_check)
-        self.get_logger().info(f"Active. Dynamic Strafing Enabled.")
+        # Braking State Variables
+        self.is_braking = False
+        self.brake_start_time = 0.0
+
+        # High frequency timer for braking logic
+        self.create_timer(0.05, self._control_loop)
         
-        self.send_zero_pwm()
+        self.get_logger().info(f"Active. Active Braking Enabled.")
+        self.send_pwm([0,0,0,0])
 
-    def send_zero_pwm(self):
-        stop_msg = {"pwm1": 0, "pwm2": 0, "pwm3": 0, "pwm4": 0}
+    def send_pwm(self, pwms):
+        msg = {
+            "pwm1": int(pwms[0]),
+            "pwm2": int(pwms[1]),
+            "pwm3": int(pwms[2]),
+            "pwm4": int(pwms[3])
+        }
         out = String()
-        out.data = json.dumps(stop_msg)
+        out.data = json.dumps(msg)
         self.pub_mcu_out.publish(out)
 
     def cb_cmdvel(self, msg: Twist):
         self.last_cmd_time = time.time()
-
+        
+        # 1. Calculate Target PWMs (Your existing logic)
         raw_vx = float(msg.linear.x)
         raw_vy = float(msg.linear.y)
         wz = -float(msg.angular.z)
 
         total_linear_mag = abs(raw_vx) + abs(raw_vy)
-        
-        if total_linear_mag < 0.05: 
-            strafe_ratio = 0.0
-        else:
-            strafe_ratio = abs(raw_vy) / total_linear_mag
-
+        strafe_ratio = abs(raw_vy) / total_linear_mag if total_linear_mag >= 0.05 else 0.0
         current_vy_gain = 1.0 + (strafe_ratio * (self.strafe_gain - 1.0))
+        
         vx = raw_vx
         vy = raw_vy * current_vy_gain
-
-        active_min_pwm = self.min_normal + (strafe_ratio * (self.min_strafe - self.min_normal))
-        
-        normal_max = self.max_pwm
-        strafe_max = self.max_pwm * self.strafe_gain
-        active_max_pwm = normal_max + (strafe_ratio * (strafe_max - normal_max))
-
         geom = self.L + self.W
         
         target_speeds_ms = [
@@ -90,18 +93,24 @@ class CmdvelToMcu(Node):
             vx - vy + wz * geom
         ]
 
-        NAV2_MAX_SPEED_MS = 0.09  
-        
+        # Calculate Gains dynamically
+        active_min_pwm = self.min_normal + (strafe_ratio * (self.min_strafe - self.min_normal))
+        normal_max = self.max_pwm
+        strafe_max = self.max_pwm * self.strafe_gain
+        active_max_pwm = normal_max + (strafe_ratio * (strafe_max - normal_max))
+        NAV2_MAX_SPEED_MS = 0.09 
+
         target_pwms = []
+        is_moving_command = False
+
         for speed_ms in target_speeds_ms:
             abs_speed = abs(speed_ms)
-            
-            if abs_speed > 0.01 and abs_speed < 0.02:
-                abs_speed = 0.02
-            
             if abs_speed < 0.01: 
                 target_pwms.append(0)
                 continue
+            
+            is_moving_command = True
+            if abs_speed < 0.02: abs_speed = 0.02
 
             speed_ratio = (abs_speed - 0.02) / (NAV2_MAX_SPEED_MS - 0.02)
             speed_ratio = max(0.0, min(1.0, speed_ratio))
@@ -112,26 +121,62 @@ class CmdvelToMcu(Node):
             final_pwm = int(pwm_mag) if speed_ms > 0 else -int(pwm_mag)
             target_pwms.append(final_pwm)
 
-        if len(target_pwms) == 4:
-            pwm_msg = {
-                "pwm1": -target_pwms[1],
-                "pwm2": target_pwms[2],
-                "pwm3": target_pwms[0],
-                "pwm4": -target_pwms[3]
-            }
-            out_msg = String()
-            out_msg.data = json.dumps(pwm_msg)
-            self.pub_mcu_out.publish(out_msg)
-            self.current_pwms = target_pwms
+        # Pad with 0s if calculation skipped
+        while len(target_pwms) < 4: target_pwms.append(0)
 
-    def _idle_check(self):
-        now = time.time()
-        if self.last_cmd_time is None:
-            return
-        if (now - self.last_cmd_time) > self.idle_timeout:
-            self.current_pwms = [0, 0, 0, 0] 
-            self.send_zero_pwm()
-            self.last_cmd_time = None
+        # --- BRAKING LOGIC ---
+        
+        # If we were moving, and now we are NOT (target is all 0), TRIGGER BRAKE
+        was_moving = any(abs(p) > 0 for p in self.current_pwms)
+        
+        if was_moving and not is_moving_command and not self.is_braking:
+            self.is_braking = True
+            self.brake_start_time = time.time()
+            # Save the LAST Moving PWMs so we know which way to reverse
+            self.last_moving_pwms = self.current_pwms
+            self.get_logger().info("Initiating Braking Sequence")
+        
+        # If we are receiving movement commands, cancel braking immediately
+        if is_moving_command:
+            self.is_braking = False
+            self.current_pwms = [
+                -target_pwms[1], # Mapping adjusted to match your original output
+                target_pwms[2],
+                target_pwms[0],
+                -target_pwms[3]
+            ]
+            self.send_pwm([self.current_pwms[0], self.current_pwms[1], self.current_pwms[2], self.current_pwms[3]])
+
+    def _control_loop(self):
+        # Handle Idle/Braking in a timer loop
+        if self.is_braking:
+            elapsed = time.time() - self.brake_start_time
+            if elapsed < self.brake_duration:
+                # Send REVERSE PWM
+                brake_pwms = []
+                for p in self.last_moving_pwms:
+                    if p > 0: brake_pwms.append(-self.brake_pwm)
+                    elif p < 0: brake_pwms.append(self.brake_pwm)
+                    else: brake_pwms.append(0)
+                
+                # Check your motor mapping here! 
+                # In cb_cmdvel you did specific mapping [-p[1], p[2], p[0], -p[3]]
+                # Since 'last_moving_pwms' already has that mapping applied (it was stored from current_pwms),
+                # we just invert the sign.
+                self.send_pwm(brake_pwms)
+            else:
+                # Braking done
+                self.is_braking = False
+                self.current_pwms = [0,0,0,0]
+                self.send_pwm([0,0,0,0])
+                self.get_logger().info("Braking Complete. Stopped.")
+
+        # Idle Timeout
+        elif self.last_cmd_time is not None:
+             if (time.time() - self.last_cmd_time) > self.idle_timeout:
+                self.current_pwms = [0, 0, 0, 0] 
+                self.send_pwm([0,0,0,0])
+                self.last_cmd_time = None
 
 def main(args=None):
     rclpy.init(args=args)
@@ -141,8 +186,7 @@ def main(args=None):
     except KeyboardInterrupt:
         pass
     finally:
-        node.send_zero_pwm()
-        time.sleep(0.1) 
+        node.send_pwm([0,0,0,0])
         node.destroy_node()
         rclpy.shutdown()
 

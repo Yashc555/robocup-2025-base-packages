@@ -88,10 +88,10 @@ class DeadWheelOdomNode(Node):
         # MAPPING PARAMETERS
         # Defines which input key (a,b,c) goes to which physical wheel.
         # Order: [Key for Front, Key for Left, Key for Right]
-        self.declare_parameter('inputs_front_left_right', ['a', 'b', 'c'])
+        self.declare_parameter('inputs_front_left_right', ['a', 'c', 'b'])
 
         # Signs apply to the INPUT KEYS [a, b, c] directly
-        self.declare_parameter('encoder_signs', [1, 1, -1])
+        self.declare_parameter('encoder_signs', [1, -1, 1])
 
         # --------------------------------
         # load params
