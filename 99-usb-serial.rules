@@ -3,14 +3,14 @@
 
 #put this file in /etc/udev/rules.d/
 
-#get usb serial id of stm(YOUR_SERIAL_ID_*) using the command: udevadm info -a -n /dev/ttyACM0 | grep '{serial}' | head -n1
+#get usb serial id of stm(YOUR_SERIAL_ID_*) using the command: udevadm info -a -n /dev/ttyACM1 | grep '{serial}' | head -n1
 #run this command with only 1 stm plugged in
 
 # encoder stm
 SUBSYSTEM=="tty", ATTRS{serial}=="3161354C3034", SYMLINK+="stm_encoder_usb"
 
 # imu stm
-SUBSYSTEM=="tty", ATTRS{serial}=="3197354C3034", SYMLINK+="stm_imu_usb"
+SUBSYSTEM=="tty", ATTRS{serial}=="318A388D3533", SYMLINK+="stm_imu_usb"
 
 
 # lidar
