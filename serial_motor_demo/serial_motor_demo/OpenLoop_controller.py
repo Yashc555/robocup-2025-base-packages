@@ -13,18 +13,19 @@ class CmdvelToMcu(Node):
         # --- Parameters ---
         self.declare_parameter('wheel_L', 0.305)
         self.declare_parameter('wheel_W', 0.2175)
-        self.declare_parameter('max_pwm', 22)
+        self.declare_parameter('max_pwm', 30)
         self.declare_parameter('scale_factor', 100.0)
-        self.declare_parameter('min_pwm_threshold_normal', 18)
+        self.declare_parameter('min_pwm_threshold_normal', 15)
         self.declare_parameter('min_pwm_threshold_strafe', 28)
-        self.declare_parameter('ramp_step', 12) 
-        self.declare_parameter('strafe_gain', 1.9) 
+        self.declare_parameter('ramp_step', 25) 
+        self.declare_parameter('strafe_gain', 2.0) 
         self.declare_parameter('idle_timeout', 0.05)
         self.declare_parameter('cmd_vel_in_topic', 'cmd_vel_out')
         self.declare_parameter('mcu_out_topic', 'mcu/out')
         
-        self.declare_parameter('brake_duration', 0.25) # Seconds to apply reverse force
-        self.declare_parameter('brake_pwm', 20)        # PWM strength for braking
+        self.declare_parameter('brake_duration', 0.25) 
+        self.declare_parameter('brake_pwm', 20)        # Standard brake PWM
+        self.declare_parameter('brake_pwm_rotation', 15) # Brake PWM for point turns
 
         # Load Params
         self.L = float(self.get_parameter('wheel_L').get_parameter_value().double_value)
@@ -38,6 +39,7 @@ class CmdvelToMcu(Node):
         
         self.brake_duration = float(self.get_parameter('brake_duration').get_parameter_value().double_value)
         self.brake_pwm = int(self.get_parameter('brake_pwm').get_parameter_value().integer_value)
+        self.brake_pwm_rotation = int(self.get_parameter('brake_pwm_rotation').get_parameter_value().integer_value)
 
         cmd_topic = self.get_parameter('cmd_vel_in_topic').get_parameter_value().string_value
         mcu_out_topic = self.get_parameter('mcu_out_topic').get_parameter_value().string_value
@@ -47,16 +49,18 @@ class CmdvelToMcu(Node):
 
         self.last_cmd_time = None
         self.current_pwms = [0, 0, 0, 0] 
-        self.last_moving_pwms = [0, 0, 0, 0] # Store direction for braking
+        self.last_moving_pwms = [0, 0, 0, 0] 
 
         # Braking State Variables
         self.is_braking = False
         self.brake_start_time = 0.0
+        self.active_brake_pwm = 0 # Stores the PWM to be used for the current braking session
+        self.last_motion_was_rotation = False # Tracks if the previous move was a turn
 
         # High frequency timer for braking logic
         self.create_timer(0.05, self._control_loop)
         
-        self.get_logger().info(f"Active. Active Braking Enabled.")
+        self.get_logger().info(f"Active. Active Braking Enabled (Std: {self.brake_pwm}, Rot: {self.brake_pwm_rotation}).")
         self.send_pwm([0,0,0,0])
 
     def send_pwm(self, pwms):
@@ -73,7 +77,7 @@ class CmdvelToMcu(Node):
     def cb_cmdvel(self, msg: Twist):
         self.last_cmd_time = time.time()
         
-        # 1. Calculate Target PWMs (Your existing logic)
+        # 1. Calculate Target PWMs
         raw_vx = float(msg.linear.x)
         raw_vy = float(msg.linear.y)
         wz = -float(msg.angular.z)
@@ -121,48 +125,59 @@ class CmdvelToMcu(Node):
             final_pwm = int(pwm_mag) if speed_ms > 0 else -int(pwm_mag)
             target_pwms.append(final_pwm)
 
-        # Pad with 0s if calculation skipped
         while len(target_pwms) < 4: target_pwms.append(0)
 
-        # --- BRAKING LOGIC ---
-        
-        # If we were moving, and now we are NOT (target is all 0), TRIGGER BRAKE
-        was_moving = any(abs(p) > 0 for p in self.current_pwms)
-        
-        if was_moving and not is_moving_command and not self.is_braking:
-            self.is_braking = True
-            self.brake_start_time = time.time()
-            # Save the LAST Moving PWMs so we know which way to reverse
-            self.last_moving_pwms = self.current_pwms
-            self.get_logger().info("Initiating Braking Sequence")
-        
-        # If we are receiving movement commands, cancel braking immediately
+        # --- MOTION TYPE TRACKING ---
         if is_moving_command:
-            self.is_braking = False
+            # Check if this is a "Point Turn" (High Angular, Low Linear)
+            # Thresholds: Linear < 0.02 m/s, Angular > 0.01 rad/s
+            if abs(raw_vx) < 0.02 and abs(raw_vy) < 0.02 and abs(wz) > 0.01:
+                self.last_motion_was_rotation = True
+            else:
+                self.last_motion_was_rotation = False
+
+            # Cancel braking if we get a move command
+            if self.is_braking:
+                self.is_braking = False
+
             self.current_pwms = [
-                -target_pwms[1], # Mapping adjusted to match your original output
+                -target_pwms[1],
                 target_pwms[2],
                 target_pwms[0],
                 -target_pwms[3]
             ]
-            self.send_pwm([self.current_pwms[0], self.current_pwms[1], self.current_pwms[2], self.current_pwms[3]])
+            self.send_pwm(self.current_pwms)
+
+        # --- BRAKING LOGIC ---
+        # If we were moving, and now we are NOT (target is all 0), TRIGGER BRAKE
+        else:
+            was_moving = any(abs(p) > 0 for p in self.current_pwms)
+            
+            if was_moving and not self.is_braking:
+                self.is_braking = True
+                self.brake_start_time = time.time()
+                self.last_moving_pwms = self.current_pwms
+                
+                # DECIDE BRAKE STRENGTH
+                if self.last_motion_was_rotation:
+                    self.active_brake_pwm = self.brake_pwm_rotation
+                    self.get_logger().info(f"Braking: Rotation Mode (PWM {self.active_brake_pwm})")
+                else:
+                    self.active_brake_pwm = self.brake_pwm
+                    self.get_logger().info(f"Braking: Standard Mode (PWM {self.active_brake_pwm})")
 
     def _control_loop(self):
         # Handle Idle/Braking in a timer loop
         if self.is_braking:
             elapsed = time.time() - self.brake_start_time
             if elapsed < self.brake_duration:
-                # Send REVERSE PWM
+                # Send REVERSE PWM using the decided active_brake_pwm
                 brake_pwms = []
                 for p in self.last_moving_pwms:
-                    if p > 0: brake_pwms.append(-self.brake_pwm)
-                    elif p < 0: brake_pwms.append(self.brake_pwm)
+                    if p > 0: brake_pwms.append(-self.active_brake_pwm)
+                    elif p < 0: brake_pwms.append(self.active_brake_pwm)
                     else: brake_pwms.append(0)
                 
-                # Check your motor mapping here! 
-                # In cb_cmdvel you did specific mapping [-p[1], p[2], p[0], -p[3]]
-                # Since 'last_moving_pwms' already has that mapping applied (it was stored from current_pwms),
-                # we just invert the sign.
                 self.send_pwm(brake_pwms)
             else:
                 # Braking done
@@ -191,4 +206,4 @@ def main(args=None):
         rclpy.shutdown()
 
 if __name__ == '__main__':
-    main()
+    main() 

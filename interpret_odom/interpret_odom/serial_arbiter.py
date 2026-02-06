@@ -16,7 +16,7 @@ class SerialArbiter(Node):
         self.declare_parameter('enc_port', '/dev/stm_encoder_usb')
         self.declare_parameter('baud', 115200)
         self.declare_parameter('out_topic', 'mcu/in')
-        self.declare_parameter('dual_mcu', True)
+        self.declare_parameter('dual_mcu', False)
 
         self.imu_port = self.get_parameter('imu_port').value
         self.enc_port = self.get_parameter('enc_port').value
