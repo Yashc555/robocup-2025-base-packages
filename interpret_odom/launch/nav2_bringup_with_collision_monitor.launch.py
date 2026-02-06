@@ -25,7 +25,7 @@ def generate_launch_description():
 
     declare_map_yaml_cmd = DeclareLaunchArgument(
         'map',
-        default_value='/home/sanjay/rcup_maps/mymap.yaml',
+        default_value='/home/sanjay/rcup_maps/myserialmap.yaml',
         description='Full path to map yaml file to load')
 
     declare_use_sim_time_cmd = DeclareLaunchArgument(
