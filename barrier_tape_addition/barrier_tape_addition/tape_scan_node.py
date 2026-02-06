@@ -4,7 +4,7 @@ tape_map_modifier_node.py
 
 Listens to:
   - /map (nav_msgs/OccupancyGrid)
-  - /ml_tape_detections (custom_interfaces/msg/BoundingBoxes)
+  - /ml_tape_detections (base_custom_interfaces/msg/BoundingBoxes)
 and permanently marks detected tape regions as occupied (100) in the map.
 
 Publishes:
@@ -25,7 +25,7 @@ from tf2_ros import Buffer, TransformListener
 from tf2_geometry_msgs import do_transform_point
 from rclpy.duration import Duration
 
-from custom_interfaces.msg import BoundingBoxes
+from base_custom_interfaces.msg import BoundingBoxes
 
 
 class TapeMapModifier(Node):

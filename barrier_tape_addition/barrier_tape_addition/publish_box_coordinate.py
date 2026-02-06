@@ -13,7 +13,7 @@ python3 publish_box_coordinate.py
 import rclpy
 from rclpy.node import Node
 from nav_msgs.msg import OccupancyGrid
-from custom_interfaces.msg import BoundingBoxes, BoundingBox
+from base_custom_interfaces.msg import BoundingBoxes, BoundingBox
 
 
 class FakeBoxesPublisher(Node):
