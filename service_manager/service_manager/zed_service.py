@@ -6,7 +6,7 @@ import tempfile
 import rclpy
 from rclpy.node import Node
 from ament_index_python.packages import get_package_share_directory
-from custom_interfaces.srv import SetDepthMode
+from base_custom_interfaces.srv import SetDepthMode
 
 class ZedManager(Node):
     def __init__(self):
