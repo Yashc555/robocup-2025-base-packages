@@ -13,9 +13,9 @@ class CmdvelToMcu(Node):
         # --- Parameters ---
         self.declare_parameter('wheel_L', 0.305)
         self.declare_parameter('wheel_W', 0.2175)
-        self.declare_parameter('max_pwm', 22)
+        self.declare_parameter('max_pwm', 19)
         self.declare_parameter('scale_factor', 100.0)
-        self.declare_parameter('min_pwm_threshold_normal', 18)
+        self.declare_parameter('min_pwm_threshold_normal', 16)
         self.declare_parameter('min_pwm_threshold_strafe', 28)
         self.declare_parameter('ramp_step', 12) 
         self.declare_parameter('strafe_gain', 1.9) 
@@ -47,16 +47,16 @@ class CmdvelToMcu(Node):
 
         self.last_cmd_time = None
         self.current_pwms = [0, 0, 0, 0] 
-        self.last_moving_pwms = [0, 0, 0, 0] # Store direction for braking
+        self.last_moving_pwms = [0, 0, 0, 0] 
 
         # Braking State Variables
         self.is_braking = False
         self.brake_start_time = 0.0
 
-        # High frequency timer for braking logic
+        # High frequency timer for braking and idle logic
         self.create_timer(0.05, self._control_loop)
         
-        self.get_logger().info(f"Active. Active Braking Enabled.")
+        self.get_logger().info(f"Active. Active Braking .min_pwm_normal={self.min_normal}, min_pwm_strafe={self.min_strafe}, max_pwm={self.max_pwm}, strafe_gain={self.strafe_gain}")
         self.send_pwm([0,0,0,0])
 
     def send_pwm(self, pwms):
@@ -73,7 +73,6 @@ class CmdvelToMcu(Node):
     def cb_cmdvel(self, msg: Twist):
         self.last_cmd_time = time.time()
         
-        # 1. Calculate Target PWMs (Your existing logic)
         raw_vx = float(msg.linear.x)
         raw_vy = float(msg.linear.y)
         wz = -float(msg.angular.z)
@@ -93,7 +92,6 @@ class CmdvelToMcu(Node):
             vx - vy + wz * geom
         ]
 
-        # Calculate Gains dynamically
         active_min_pwm = self.min_normal + (strafe_ratio * (self.min_strafe - self.min_normal))
         normal_max = self.max_pwm
         strafe_max = self.max_pwm * self.strafe_gain
@@ -121,61 +119,59 @@ class CmdvelToMcu(Node):
             final_pwm = int(pwm_mag) if speed_ms > 0 else -int(pwm_mag)
             target_pwms.append(final_pwm)
 
-        # Pad with 0s if calculation skipped
         while len(target_pwms) < 4: target_pwms.append(0)
 
         # --- BRAKING LOGIC ---
-        
-        # If we were moving, and now we are NOT (target is all 0), TRIGGER BRAKE
         was_moving = any(abs(p) > 0 for p in self.current_pwms)
         
+        # Trigger brake if moving command stops but signal is still present
         if was_moving and not is_moving_command and not self.is_braking:
             self.is_braking = True
             self.brake_start_time = time.time()
-            # Save the LAST Moving PWMs so we know which way to reverse
             self.last_moving_pwms = self.current_pwms
-            self.get_logger().info("Initiating Braking Sequence")
+            self.get_logger().info("Zero command received: Initiating Brake")
         
-        # If we are receiving movement commands, cancel braking immediately
         if is_moving_command:
             self.is_braking = False
             self.current_pwms = [
-                -target_pwms[1], # Mapping adjusted to match your original output
+                -target_pwms[1], 
                 target_pwms[2],
                 target_pwms[0],
                 -target_pwms[3]
             ]
-            self.send_pwm([self.current_pwms[0], self.current_pwms[1], self.current_pwms[2], self.current_pwms[3]])
+            self.send_pwm(self.current_pwms)
 
     def _control_loop(self):
-        # Handle Idle/Braking in a timer loop
+        # 1. Handle Active Braking
         if self.is_braking:
             elapsed = time.time() - self.brake_start_time
             if elapsed < self.brake_duration:
-                # Send REVERSE PWM
                 brake_pwms = []
                 for p in self.last_moving_pwms:
                     if p > 0: brake_pwms.append(-self.brake_pwm)
                     elif p < 0: brake_pwms.append(self.brake_pwm)
                     else: brake_pwms.append(0)
-                
-                # Check your motor mapping here! 
-                # In cb_cmdvel you did specific mapping [-p[1], p[2], p[0], -p[3]]
-                # Since 'last_moving_pwms' already has that mapping applied (it was stored from current_pwms),
-                # we just invert the sign.
                 self.send_pwm(brake_pwms)
             else:
-                # Braking done
                 self.is_braking = False
                 self.current_pwms = [0,0,0,0]
                 self.send_pwm([0,0,0,0])
-                self.get_logger().info("Braking Complete. Stopped.")
+                self.get_logger().info("Braking Complete.")
 
-        # Idle Timeout
+        # 2. Handle Idle/Timeout (Joystick release)
         elif self.last_cmd_time is not None:
              if (time.time() - self.last_cmd_time) > self.idle_timeout:
-                self.current_pwms = [0, 0, 0, 0] 
-                self.send_pwm([0,0,0,0])
+                was_moving = any(abs(p) > 0 for p in self.current_pwms)
+                
+                if was_moving:
+                    # Signal lost while moving: Kick off braking sequence
+                    self.is_braking = True
+                    self.brake_start_time = time.time()
+                    self.last_moving_pwms = self.current_pwms
+                    self.get_logger().warn("Timeout: Applying Emergency Brake")
+                else:
+                    self.send_pwm([0,0,0,0])
+                
                 self.last_cmd_time = None
 
 def main(args=None):
